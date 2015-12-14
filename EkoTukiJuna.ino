@@ -27,16 +27,18 @@ enum {
   ST_STARTING,
   ST_RUNNING,
   ST_STOPPING,
-  ST_STATION
+  ST_STATION,
+  ST_UNDERVOLTAGE
 };
 
+// Current state
 int state=ST_INIT;
 int pstate=state;
 
+// Status variables
 int tspeed=0; // Target speed
 int cspeed=0; // Current speed
 int aspeed=1; // Adjust speed
-
 int ptime=10; // Pause time
 
 float shuntvoltage = 0;
@@ -44,24 +46,39 @@ float busvoltage = 0;
 float current_mA = 0;
 float loadvoltage = 0;
 
+// Lights
+int led1=0;
+int led2=0;
+int led3=0;
+
+int travel=0;
+
+// Track sensor counters
 unsigned long cm=0;
-volatile unsigned long i1cm=0;
-volatile unsigned long i2cm=0;
+volatile unsigned long icm=0; // IRQ delay
 int irqdelay=1000;
 
+// Default delays
+int stationDelay=10;
+int startDelay=10;
+int stopDelay=10;
+int runningTime=100;
+
+// Single track sensor, back country
 void trackTick1()
 {
-  if (cm>(i1cm+irqdelay)) {
+  if (cm>(icm+irqdelay)) {
     cnt1++;
-    i1cm=cm;
+    icm=cm;
   }
 }
 
+// Double track sensor, station
 void trackTick2()
 {
-  if (cm>(i2cm+irqdelay)) {
+  if (cm>(icm+irqdelay)) {
     cnt2++;
-    i2cm=cm;
+    icm=cm;
   }
 }
 
@@ -76,20 +93,46 @@ void lcd_init()
   lcd.print ("J-001");    
 }
 
+int readAnalogSetting(int pin, int vmin, int vmax) {
+  int v = analogRead(pin);
+  v = map(v, 0, 1024, vmin, vmax);
+  return v;
+}
+
+void readSettings() {
+  int tmp=readAnalogSetting(A0, 10, 100);
+  Serial.print("RAS1: ");
+  Serial.println(tmp);
+}
+
 void draw(void) {  
   u8g.setFont(u8g_font_unifont);
   switch (state) {
     case ST_STARTING:
-      u8g.drawStr(0, 22, "Ekotuki");
-      u8g.drawStr(0, 34, " Turku!");
+      u8g.drawStr(0, 22, "Ekotuki Turku");
+      //u8g.drawStr(0, 34, " Turku!");
     break;
     case ST_RUNNING:
-      u8g.drawStr(0, 22, "Tunnin");
-      u8g.drawStr(0, 34, " Juna!");
+      u8g.drawStr(0, 22, "Tunnin Juna");
+      //u8g.drawStr(0, 34, " Juna!");
     break;
     case ST_STOPPING:
-      u8g.drawStr(0, 22, "Fölillä");
+      u8g.drawStr(0, 22, "Folilla");
       u8g.drawStr(0, 34, "Kotiin!");
+      u8g.drawStr(0, 42, "www.foli.fi");
+    break;
+    case ST_STATION:
+      if (travel==0) {
+        u8g.drawStr(0, 22, "Turku");
+        u8g.drawStr(0, 34, "Helsinki");
+      } else {
+        u8g.drawStr(0, 22, "Helsinki");
+        u8g.drawStr(0, 34, "Turku");
+      }
+    break;
+    case ST_UNDERVOLTAGE:
+      u8g.drawStr(0, 22, "Sahkoverkkossa");
+      u8g.drawStr(30, 34, "vikaa");
     break;
   }
 }
@@ -100,21 +143,27 @@ void readINA(void)
   busvoltage = ina219.getBusVoltage_V();
   current_mA = ina219.getCurrent_mA();
   loadvoltage = busvoltage + (shuntvoltage / 1000);
-  
+  /*
   Serial.print("BV:"); Serial.print(busvoltage); Serial.println(" V");
   Serial.print("SV:"); Serial.print(shuntvoltage); Serial.println(" mV");
   Serial.print("LV:"); Serial.print(loadvoltage); Serial.println(" V");
   Serial.print("CU:"); Serial.print(current_mA); Serial.println(" mA");
   Serial.println("");
+  */
 }
 
 void setup()
 {
+  // PWM
   pinMode(5, OUTPUT);
   pinMode(6, OUTPUT);
+  pinMode(9, OUTPUT);
+  pinMode(10, OUTPUT);
 
   analogWrite(5, 0);
   analogWrite(6, 0);
+  analogWrite(9, 0);
+  analogWrite(10, 0);
 
   Serial.begin(115200);
   Serial.println("JV001");
@@ -125,6 +174,7 @@ void setup()
   u8g.setColorIndex(1);
 
   readINA();
+  readSettings();
 
   delay(1000);
   
@@ -134,14 +184,22 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(3), trackTick2, FALLING);
 
   lcd.clear();
+
+  setLights();
 }
 
 void updateLCD()
 {
   lcd.setCursor(3, 0);
-  lcd.print(busvoltage); 
+  if (busvoltage>9.0)
+    lcd.print((int)busvoltage); 
+  else
+    lcd.print(busvoltage); 
   lcd.setCursor(3, 1);
-  lcd.print(current_mA); 
+  if (current_mA>100.0)
+    lcd.print((int)current_mA);
+  else
+    lcd.print(current_mA);
 
   lcd.setCursor(9, 0);
   lcd.print(tspeed); 
@@ -177,6 +235,12 @@ void setNextState(int s, int p, int a) {
   aspeed=a;
 }
 
+void setLights() {
+  analogWrite(6, led1);
+  analogWrite(9, led2);
+  analogWrite(10, led3);
+}
+
 void loop()
 {
   cm=millis();
@@ -196,7 +260,10 @@ void loop()
 
   Serial.println(state);
   switch (state) {
-    case ST_INIT:      
+    case ST_INIT:
+      led1=64;
+      led2=64;
+      led3=64;
       if (ptime==0) {
         state=ST_STARTING;
         ptime=20;
@@ -213,6 +280,7 @@ void loop()
       tspeed=130;
       if (ptime==0) {
         setNextState(ST_STOPPING, 20, 2);
+        travel=random(100)>50 ? 0 : 1;
       }
     break;
     case ST_STOPPING:
@@ -230,28 +298,44 @@ void loop()
         ptime=20;
       }
     break;
+    case ST_UNDERVOLTAGE:
+      if (busvoltage>8.0) {
+        state=ST_INIT;
+        readSettings();
+      } else {
+        tspeed=0;
+        cspeed=0;
+        ptime=0;
+        led1=0;
+        led2=0;
+        led3=0;
+      }
+    break;
     default:
       state=ST_INIT;
       Serial.println("?");
     break;
   }
-
-  if (pstate!=state) {
-    lcd.clear();
-  }
   
   speedAdjust();
   readINA();
+
+  if (busvoltage<8.0) {
+    state=ST_UNDERVOLTAGE;
+    tspeed=0;
+    cspeed=0;
+    ptime=0;
+  }
+  
+  if (pstate!=state) {
+    lcd.clear();
+  }
   updateLCD();
 
-  if (busvoltage<7.0) {
-    // Undervoltage, do nothing
-    analogWrite(5, 0);
-    analogWrite(6, 0);    
-  } else {
-    analogWrite(5, cspeed);
-    analogWrite(6, cspeed);
-  }
+  // Train speed
+  analogWrite(5, cspeed);
+  setLights();
+  
   delay(100);  
 }
 
