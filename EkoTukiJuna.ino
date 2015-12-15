@@ -8,18 +8,24 @@
  * 
  */
 
+#define SD_ChipSelectPin 4
 
+#include <SPI.h>
 #include <Wire.h> 
 #include <U8glib.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_INA219.h>
+
+#include <pcmRF.h>
+#include <TMRpcm.h>
+#include <pcmConfig.h>
 
 #define BACKLIGHT_PIN     3
 
 LiquidCrystal_I2C lcd(0x27,2,1,0,4,5,6,7);  // Set the LCD I2C address
 U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
 Adafruit_INA219 ina219;
-
+TMRpcm pcm;
 
 volatile int cnt1=0;
 volatile int cnt2=0;
