@@ -8,6 +8,7 @@
  * 
  */
 
+
 #include <Wire.h> 
 #include <U8glib.h>
 #include <LiquidCrystal_I2C.h>
@@ -18,6 +19,7 @@
 LiquidCrystal_I2C lcd(0x27,2,1,0,4,5,6,7);  // Set the LCD I2C address
 U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
 Adafruit_INA219 ina219;
+
 
 volatile int cnt1=0;
 volatile int cnt2=0;
@@ -32,26 +34,26 @@ enum {
 };
 
 // Current state
-int state=ST_INIT;
-int pstate=state;
+byte state=ST_INIT;
+byte pstate=state;
 
 // Status variables
-int tspeed=0; // Target speed
-int cspeed=0; // Current speed
-int aspeed=1; // Adjust speed
-int ptime=10; // Pause time
+byte tspeed=0; // Target speed
+byte cspeed=0; // Current speed
+byte aspeed=1; // Adjust speed
+byte ptime=10; // Pause time
 
-float shuntvoltage = 0;
-float busvoltage = 0;
-float current_mA = 0;
-float loadvoltage = 0;
+float shuntvoltage;
+float busvoltage;
+float current_mA;
+float loadvoltage;
 
 // Lights
-int led1=0;
-int led2=0;
-int led3=0;
+byte led1=0;
+byte led2=0;
+byte led3=0;
 
-int travel=0;
+byte travel=0;
 
 // Track sensor counters
 unsigned long cm=0;
@@ -59,10 +61,10 @@ volatile unsigned long icm=0; // IRQ delay
 int irqdelay=1000;
 
 // Default delays
-int stationDelay=10;
-int startDelay=10;
-int stopDelay=10;
-int runningTime=100;
+byte stationDelay=10;
+byte startDelay=10;
+byte stopDelay=10;
+byte runningTime=100;
 
 // Single track sensor, back country
 void trackTick1()
