@@ -71,6 +71,7 @@ byte stationDelay=10;
 byte startDelay=10;
 byte stopDelay=10;
 byte runningTime=100;
+byte r1, r2;
 
 // Single track sensor, back country
 void trackTick1()
@@ -108,9 +109,8 @@ int readAnalogSetting(int pin, int vmin, int vmax) {
 }
 
 void readSettings() {
-  int tmp=readAnalogSetting(A0, 10, 100);
-  Serial.print("RAS1: ");
-  Serial.println(tmp);
+  r1=readAnalogSetting(A0, 0, 255);
+  r2=readAnalogSetting(A1, 0, 255);
 }
 
 void draw(void) {  
