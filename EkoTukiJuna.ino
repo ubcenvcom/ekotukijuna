@@ -30,6 +30,10 @@ TMRpcm pcm;
 volatile int cnt1=0;
 volatile int cnt2=0;
 
+byte lcdPage=1;
+
+bool hasSD=false;
+
 enum {
   ST_INIT,
   ST_STARTING,
@@ -91,6 +95,7 @@ void trackTick2()
   }
 }
 
+// Setup 16x2 character LCD used for information display (and debug)
 void lcd_init()
 {
   lcd.setBacklightPin(3, POSITIVE);
@@ -109,6 +114,8 @@ int readAnalogSetting(int pin, int vmin, int vmax)
   return v;
 }
 
+// Read two analog settings from pins A0 and A1
+// Exact usage is TBD
 void readSettings()
 {
   r1=readAnalogSetting(A0, 0, 255);
@@ -169,11 +176,13 @@ void errorMsg(const char *msg)
   lcd.home();
   lcd.print(msg);
   Serial.println(msg);
+  delay(100);
 }
 
 void setup()
 {
-  // PWM
+  // setup PWM output pins
+  // Pins 5,6 and 10 are connect to a motor controller, we abuse it a bit 
   pinMode(5, OUTPUT);
   pinMode(6, OUTPUT);  
   pinMode(10, OUTPUT);
@@ -195,11 +204,15 @@ void setup()
   readSettings();
 
   if (!SD.begin(SD_ChipSelectPin)) {
-    errorMsg("SD!");    
+    errorMsg("SD!");
+    hasSD=false;
+  } else {
+    hasSD=true;
   }
 
   delay(1000);
-  
+
+  // Train track IR sensors are connected to pins 2,3
   pinMode(2, INPUT);
   pinMode(3, INPUT);
   attachInterrupt(digitalPinToInterrupt(2), trackTick1, FALLING);
@@ -210,7 +223,40 @@ void setup()
   setLights();
 }
 
+void setLCDPage(int page)
+{
+  lcdPage=page;
+  lcd.clear();
+  updateLCD();
+}
+
 void updateLCD()
+{
+  switch (lcdPage) {
+    case 1:
+      updateLCDBasePage();
+    break;
+    case 2:
+      updateLCDDebugPage();
+    break;
+  }
+}
+
+void lcdPrintIntAt(byte c,byte r, const int a)
+{
+  lcd.setCursor(c, r);
+  lcd.print(a);
+}
+
+void updateLCDDebugPage()
+{
+  lcdPrintIntAt(4, 0, r1);
+  lcdPrintIntAt(4, 1, r2);
+  lcdPrintIntAt(0, 0, cnt1);
+  lcdPrintIntAt(0, 1, cnt2);
+}
+
+void updateLCDBasePage()
 {
   lcd.setCursor(3, 0);
   if (busvoltage>9.0)
@@ -223,22 +269,15 @@ void updateLCD()
   else
     lcd.print(current_mA);
 
-  lcd.setCursor(9, 0);
-  lcd.print(tspeed); 
-  lcd.setCursor(9, 1);
-  lcd.print(cspeed); 
-  
-  lcd.setCursor(13, 0);
-  lcd.print(aspeed);
-  lcd.setCursor(15, 0);
-  lcd.print(state);
-  lcd.setCursor(13, 1);
-  lcd.print(ptime); 
+  lcdPrintIntAt(9, 0, tspeed);
+  lcdPrintIntAt(9, 1, cspeed); 
 
-  lcd.setCursor(0, 0);
-  lcd.print(cnt1); 
-  lcd.setCursor(0, 1);
-  lcd.print(cnt2); 
+  lcdPrintIntAt(13, 0, aspeed);
+  lcdPrintIntAt(15, 0, state);
+  lcdPrintIntAt(13, 1, ptime);
+
+  lcdPrintIntAt(0, 0, cnt1);
+  lcdPrintIntAt(0, 1, cnt2);
 }
 
 void speedAdjust()
