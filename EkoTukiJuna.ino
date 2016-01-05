@@ -118,8 +118,8 @@ int readAnalogSetting(int pin, int vmin, int vmax)
 // Exact usage is TBD
 void readSettings()
 {
-  r1=readAnalogSetting(A0, 0, 255);
-  r2=readAnalogSetting(A1, 0, 255);
+  r1=readAnalogSetting(A0, 1, 255);
+  r2=readAnalogSetting(A1, 1, 255);
 }
 
 void draw(void)
