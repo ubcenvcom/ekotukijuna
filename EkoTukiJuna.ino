@@ -96,24 +96,27 @@ void lcd_init()
   lcd.setBacklightPin(3, POSITIVE);
   lcd.setBacklight(BACKLIGHT_ON);
   lcd.begin(16,2);
-  lcd.home ();
+  lcd.home();
   lcd.print("Turku Ekotuki");
-  lcd.setCursor (0, 1);
-  lcd.print ("J-001");    
+  lcd.setCursor(0, 1);
+  lcd.print("J-001");    
 }
 
-int readAnalogSetting(int pin, int vmin, int vmax) {
+int readAnalogSetting(int pin, int vmin, int vmax)
+{
   int v = analogRead(pin);
   v = map(v, 0, 1024, vmin, vmax);
   return v;
 }
 
-void readSettings() {
+void readSettings()
+{
   r1=readAnalogSetting(A0, 0, 255);
   r2=readAnalogSetting(A1, 0, 255);
 }
 
-void draw(void) {  
+void draw(void)
+{  
   u8g.setFont(u8g_font_unifont);
   switch (state) {
     case ST_STARTING:
@@ -151,38 +154,49 @@ void readINA(void)
   busvoltage = ina219.getBusVoltage_V();
   current_mA = ina219.getCurrent_mA();
   loadvoltage = busvoltage + (shuntvoltage / 1000);
-  /*
+#ifdef DEBUG
   Serial.print("BV:"); Serial.print(busvoltage); Serial.println(" V");
   Serial.print("SV:"); Serial.print(shuntvoltage); Serial.println(" mV");
   Serial.print("LV:"); Serial.print(loadvoltage); Serial.println(" V");
   Serial.print("CU:"); Serial.print(current_mA); Serial.println(" mA");
   Serial.println("");
-  */
+#endif
+}
+
+void errorMsg(const char *msg)
+{
+  lcd.clear();
+  lcd.home();
+  lcd.print(msg);
+  Serial.println(msg);
 }
 
 void setup()
 {
   // PWM
   pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);
-  pinMode(9, OUTPUT);
+  pinMode(6, OUTPUT);  
   pinMode(10, OUTPUT);
 
   analogWrite(5, 0);
-  analogWrite(6, 0);
-  analogWrite(9, 0);
+  analogWrite(6, 0);  
   analogWrite(10, 0);
 
-  Serial.begin(115200);
-  Serial.println("JV001");
+  pcm.speakerPin = 9;
+
+  Serial.begin(115200);  
 
   lcd_init();
-
+  
   ina219.begin();
   u8g.setColorIndex(1);
 
   readINA();
   readSettings();
+
+  if (!SD.begin(SD_ChipSelectPin)) {
+    errorMsg("SD!");    
+  }
 
   delay(1000);
   
@@ -227,7 +241,8 @@ void updateLCD()
   lcd.print(cnt2); 
 }
 
-void speedAdjust() {
+void speedAdjust()
+{
   if (tspeed>cspeed && cspeed<255)
     cspeed+=aspeed;
   else if (tspeed<cspeed && cspeed>0) {
@@ -237,13 +252,15 @@ void speedAdjust() {
   Serial.println(cspeed);
 }
 
-void setNextState(int s, int p, int a) {
+void setNextState(int s, int p, int a)
+{
   state=s;
   ptime=p;
   aspeed=a;
 }
 
-void setLights() {
+void setLights()
+{
   analogWrite(6, led1);
   analogWrite(9, led2);
   analogWrite(10, led3);
