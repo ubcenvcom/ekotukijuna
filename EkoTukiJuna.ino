@@ -78,7 +78,7 @@ byte maxRounds = 8;
 // Track sensor counters
 unsigned long cm = 0;
 volatile unsigned long icm = 0; // IRQ delay
-int irqdelay = 1000;
+int irqdelay = 2000;
 
 // Default delays
 byte stationDelay = 10;
@@ -225,8 +225,8 @@ void setup()
   // Train track IR sensors are connected to pins 2,3
   pinMode(2, INPUT);
   pinMode(3, INPUT);
-  attachInterrupt(digitalPinToInterrupt(2), trackTick1, FALLING);
-  attachInterrupt(digitalPinToInterrupt(3), trackTick2, FALLING);
+  attachInterrupt(digitalPinToInterrupt(2), trackTick2, FALLING);
+  attachInterrupt(digitalPinToInterrupt(3), trackTick1, FALLING);
 
   lcd.clear();
 
