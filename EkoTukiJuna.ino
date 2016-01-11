@@ -1,17 +1,17 @@
 /**
- * Turku Ekotuki
- * http://www.ekotuki.net/
- * 
- * Copyright 2015 Kaj-Michael Lang
- * 
- * License: GPLv2
- * 
- */
+   Turku Ekotuki
+   http://www.ekotuki.net/
+
+   Copyright 2015 Kaj-Michael Lang
+
+   License: GPLv2
+
+*/
 
 #define SD_ChipSelectPin 4
 
 #include <SPI.h>
-#include <Wire.h> 
+#include <Wire.h>
 #include <U8glib.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_INA219.h>
@@ -22,20 +22,24 @@
 
 #define BACKLIGHT_PIN     3
 
-LiquidCrystal_I2C lcd(0x27,2,1,0,4,5,6,7);  // Set the LCD I2C address
+#define DEBUG 1
+
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7); // Set the LCD I2C address
 U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
 Adafruit_INA219 ina219;
 TMRpcm pcm;
 
-volatile int cnt1=0;
-volatile int cnt2=0;
+volatile int cnt1 = 0;
+volatile int cnt2 = 0;
 
-byte lcdPage=1;
+int stopCnt = 0;
 
-bool hasSD=false;
+byte lcdPage = 1;
+
+bool hasSD = false;
 
 enum {
-  ST_INIT,
+  ST_INIT = 0,
   ST_STARTING,
   ST_RUNNING,
   ST_STOPPING,
@@ -44,14 +48,17 @@ enum {
 };
 
 // Current state
-byte state=ST_INIT;
-byte pstate=state;
+byte state = ST_INIT;
+byte pstate = state;
 
 // Status variables
-byte tspeed=0; // Target speed
-byte cspeed=0; // Current speed
-byte aspeed=1; // Adjust speed
-byte ptime=10; // Pause time
+int tspeed = 0; // Target speed
+int cspeed = 0; // Current speed
+byte aspeed = 1; // Adjust speed
+byte ptime = 10; // Pause time
+
+byte runTime;
+byte stopTime;
 
 float shuntvoltage;
 float busvoltage;
@@ -59,39 +66,41 @@ float current_mA;
 float loadvoltage;
 
 // Lights
-byte led1=0;
-byte led2=0;
-byte led3=0;
+byte led1 = 0;
+byte led2 = 0;
+byte led3 = 0;
 
-byte travel=0;
+byte travel = 0;
+
+byte maxRounds = 8;
 
 // Track sensor counters
-unsigned long cm=0;
-volatile unsigned long icm=0; // IRQ delay
-int irqdelay=1000;
+unsigned long cm = 0;
+volatile unsigned long icm = 0; // IRQ delay
+int irqdelay = 1000;
 
 // Default delays
-byte stationDelay=10;
-byte startDelay=10;
-byte stopDelay=10;
-byte runningTime=100;
+byte stationDelay = 10;
+byte startDelay = 10;
+byte stopDelay = 10;
+byte runningTime = 100;
 byte r1, r2;
 
 // Single track sensor, back country
 void trackTick1()
 {
-  if (cm>(icm+irqdelay)) {
+  if (cm > (icm + irqdelay)) {
     cnt1++;
-    icm=cm;
+    icm = cm;
   }
 }
 
 // Double track sensor, station
 void trackTick2()
 {
-  if (cm>(icm+irqdelay)) {
+  if (cm > (icm + irqdelay)) {
     cnt2++;
-    icm=cm;
+    icm = cm;
   }
 }
 
@@ -100,11 +109,11 @@ void lcd_init()
 {
   lcd.setBacklightPin(3, POSITIVE);
   lcd.setBacklight(BACKLIGHT_ON);
-  lcd.begin(16,2);
+  lcd.begin(16, 2);
   lcd.home();
   lcd.print("Turku Ekotuki");
   lcd.setCursor(0, 1);
-  lcd.print("J-001");    
+  lcd.print("J-001");
 }
 
 int readAnalogSetting(int pin, int vmin, int vmax)
@@ -118,56 +127,52 @@ int readAnalogSetting(int pin, int vmin, int vmax)
 // Exact usage is TBD
 void readSettings()
 {
-  r1=readAnalogSetting(A0, 1, 255);
-  r2=readAnalogSetting(A1, 1, 255);
+  r1 = readAnalogSetting(A0, 1, 255);
+  r2 = readAnalogSetting(A1, 1, 255);
+
+  runTime = 10 + (r1 / 4);
+  stopTime = 10 + (r2 / 4);
 }
 
 void draw(void)
-{  
+{
   u8g.setFont(u8g_font_unifont);
   switch (state) {
     case ST_STARTING:
       u8g.drawStr(0, 22, "Ekotuki Turku");
       //u8g.drawStr(0, 34, " Turku!");
-    break;
+      break;
     case ST_RUNNING:
       u8g.drawStr(0, 22, "Tunnin Juna");
       //u8g.drawStr(0, 34, " Juna!");
-    break;
+      break;
     case ST_STOPPING:
       u8g.drawStr(0, 22, "Folilla");
       u8g.drawStr(0, 34, "Kotiin!");
       u8g.drawStr(0, 42, "www.foli.fi");
-    break;
+      break;
     case ST_STATION:
-      if (travel==0) {
+      if (travel == 0) {
         u8g.drawStr(0, 22, "Turku");
         u8g.drawStr(0, 34, "Helsinki");
       } else {
         u8g.drawStr(0, 22, "Helsinki");
         u8g.drawStr(0, 34, "Turku");
       }
-    break;
+      break;
     case ST_UNDERVOLTAGE:
       u8g.drawStr(0, 22, "Sahkoverkkossa");
       u8g.drawStr(30, 34, "vikaa");
-    break;
+      break;
   }
 }
 
-void readINA(void) 
+void readINA(void)
 {
   shuntvoltage = ina219.getShuntVoltage_mV();
   busvoltage = ina219.getBusVoltage_V();
   current_mA = ina219.getCurrent_mA();
   loadvoltage = busvoltage + (shuntvoltage / 1000);
-#ifdef DEBUG
-  Serial.print("BV:"); Serial.print(busvoltage); Serial.println(" V");
-  Serial.print("SV:"); Serial.print(shuntvoltage); Serial.println(" mV");
-  Serial.print("LV:"); Serial.print(loadvoltage); Serial.println(" V");
-  Serial.print("CU:"); Serial.print(current_mA); Serial.println(" mA");
-  Serial.println("");
-#endif
 }
 
 void errorMsg(const char *msg)
@@ -182,33 +187,37 @@ void errorMsg(const char *msg)
 void setup()
 {
   // setup PWM output pins
-  // Pins 5,6 and 10 are connect to a motor controller, we abuse it a bit 
+  // Pins 5,6 and 10 are connect to a motor controller, we abuse it a bit
   pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);  
+  pinMode(6, OUTPUT);
   pinMode(10, OUTPUT);
 
   analogWrite(5, 0);
-  analogWrite(6, 0);  
+  analogWrite(6, 0);
   analogWrite(10, 0);
 
   pcm.speakerPin = 9;
 
-  Serial.begin(115200);  
+  Serial.begin(115200);
 
   lcd_init();
-  
+
   ina219.begin();
   u8g.setColorIndex(1);
 
-  readINA();
   readSettings();
+
+  readINA();
 
   if (!SD.begin(SD_ChipSelectPin)) {
     errorMsg("SD!");
-    hasSD=false;
+    hasSD = false;
   } else {
-    hasSD=true;
+    hasSD = true;
   }
+
+  lcdPrintIntAt(10, 0, r1);
+  lcdPrintIntAt(10, 1, r2);
 
   delay(1000);
 
@@ -225,7 +234,7 @@ void setup()
 
 void setLCDPage(int page)
 {
-  lcdPage=page;
+  lcdPage = page;
   lcd.clear();
   updateLCD();
 }
@@ -235,14 +244,20 @@ void updateLCD()
   switch (lcdPage) {
     case 1:
       updateLCDBasePage();
-    break;
+      break;
     case 2:
       updateLCDDebugPage();
-    break;
+      break;
   }
 }
 
-void lcdPrintIntAt(byte c,byte r, const int a)
+void lcdPrintIntAt(byte c, byte r, const int a)
+{
+  lcd.setCursor(c, r);
+  lcd.print(a);
+}
+
+void lcdPrintIntAt(byte c, byte r, const float a)
 {
   lcd.setCursor(c, r);
   lcd.print(a);
@@ -250,52 +265,64 @@ void lcdPrintIntAt(byte c,byte r, const int a)
 
 void updateLCDDebugPage()
 {
-  lcdPrintIntAt(4, 0, r1);
-  lcdPrintIntAt(4, 1, r2);
+  lcdPrintIntAt(3, 0, r1);
+  lcdPrintIntAt(3, 1, r2);
+
   lcdPrintIntAt(0, 0, cnt1);
   lcdPrintIntAt(0, 1, cnt2);
+
+  lcdPrintIntAt(9, 0, busvoltage);
+  lcdPrintIntAt(9, 1, current_mA);
 }
 
 void updateLCDBasePage()
 {
-  lcd.setCursor(3, 0);
-  if (busvoltage>9.0)
-    lcd.print((int)busvoltage); 
+  lcdPrintIntAt(0, 0, cnt1);
+  lcdPrintIntAt(0, 1, cnt2);
+
+#ifdef DISPLAY_V_A
+  lcd.setCursor(9, 0);
+  if (busvoltage > 9.0)
+    lcd.print((int)busvoltage);
   else
-    lcd.print(busvoltage); 
-  lcd.setCursor(3, 1);
-  if (current_mA>100.0)
+    lcd.print(busvoltage);
+  lcd.setCursor(9, 1);
+  if (current_mA > 100.0)
     lcd.print((int)current_mA);
   else
     lcd.print(current_mA);
+#endif    
 
-  lcdPrintIntAt(9, 0, tspeed);
-  lcdPrintIntAt(9, 1, cspeed); 
+  lcdPrintIntAt(3, 0, tspeed);
+  lcdPrintIntAt(3, 1, cspeed);
 
-  lcdPrintIntAt(13, 0, aspeed);
-  lcdPrintIntAt(15, 0, state);
-  lcdPrintIntAt(13, 1, ptime);
-
-  lcdPrintIntAt(0, 0, cnt1);
-  lcdPrintIntAt(0, 1, cnt2);
+  lcdPrintIntAt(8, 0, aspeed);
+  lcdPrintIntAt(8, 1, ptime);
+  
+  lcdPrintIntAt(13, 0, state);
+  lcdPrintIntAt(13, 1, stopCnt);
 }
 
 void speedAdjust()
 {
-  if (tspeed>cspeed && cspeed<255)
-    cspeed+=aspeed;
-  else if (tspeed<cspeed && cspeed>0) {
-    cspeed-=aspeed;
+  if (tspeed > cspeed && cspeed < 255)
+    cspeed += aspeed;
+  else if (tspeed < cspeed && cspeed > 0) {
+    cspeed -= aspeed;
   }
-  Serial.print("CS:");
-  Serial.println(cspeed);
+
 }
 
 void setNextState(int s, int p, int a)
 {
-  state=s;
-  ptime=p;
-  aspeed=a;
+  state = s;
+  ptime = p;
+  aspeed = a;
+
+  Serial.println("***");
+  Serial.println(s);
+  Serial.println(p);
+  Serial.println(a);
 }
 
 void setLights()
@@ -305,93 +332,125 @@ void setLights()
   analogWrite(10, led3);
 }
 
+void dump()
+{
+#ifdef DEBUG
+  Serial.print("BV:"); Serial.print(busvoltage); Serial.println(" V");
+  Serial.print("SV:"); Serial.print(shuntvoltage); Serial.println(" mV");
+  Serial.print("LV:"); Serial.print(loadvoltage); Serial.println(" V");
+  Serial.print("CU:"); Serial.print(current_mA); Serial.println(" mA");
+  Serial.println("---");
+  Serial.print("CS:");
+  Serial.println(cspeed);
+  Serial.print("TS:");
+  Serial.println(cspeed);
+  Serial.print("PT:");
+  Serial.println(ptime);
+  Serial.print("ST:");
+  Serial.println(state);
+  Serial.println("---");
+#endif
+}
+
 void loop()
 {
-  cm=millis();
-  
-  u8g.firstPage();  
+  cm = millis();
+
+  u8g.firstPage();
   do {
     draw();
-  } while( u8g.nextPage());
+  } while ( u8g.nextPage());
 
-  Serial.print("PT:");
-  ptime--;
-  if (ptime<0)
-    ptime=0;
-  Serial.println(ptime);
-
-  pstate=state;
-
-  Serial.println(state);
-  switch (state) {
-    case ST_INIT:
-      led1=64;
-      led2=64;
-      led3=64;
-      if (ptime==0) {
-        state=ST_STARTING;
-        ptime=20;
-        aspeed=4;
-      }
-    break;
-    case ST_STARTING:
-      tspeed=160;
-      if (ptime==0) {
-        setNextState(ST_RUNNING, 120, 2);
-      }
-    break;
-    case ST_RUNNING:
-      tspeed=130;
-      if (ptime==0) {
-        setNextState(ST_STOPPING, 20, 2);
-        travel=random(100)>50 ? 0 : 1;
-      }
-    break;
-    case ST_STOPPING:
-      tspeed=0;
-      cspeed/=2;
-      if (ptime==0) {
-        state=ST_STATION;
-        ptime=40;
-      }
-    break;
-    case ST_STATION:
-      if (ptime==0) {
-        state=ST_STARTING;
-        aspeed=6;
-        ptime=20;
-      }
-    break;
-    case ST_UNDERVOLTAGE:
-      if (busvoltage>8.0) {
-        state=ST_INIT;
-        readSettings();
-      } else {
-        tspeed=0;
-        cspeed=0;
-        ptime=0;
-        led1=0;
-        led2=0;
-        led3=0;
-      }
-    break;
-    default:
-      state=ST_INIT;
-      Serial.println("?");
-    break;
-  }
-  
-  speedAdjust();
   readINA();
 
-  if (busvoltage<8.0) {
-    state=ST_UNDERVOLTAGE;
-    tspeed=0;
-    cspeed=0;
-    ptime=0;
+  ptime--;
+  if (ptime < 0)
+    ptime = 0;
+  pstate = state;
+
+  dump();
+
+  switch (state) {
+    case ST_INIT: //0
+      led1 = 64;
+      led2 = 64;
+      led3 = 64;
+      if (ptime == 0) {
+        state = ST_STARTING;
+        ptime = 20;
+        aspeed = 4;
+        cnt1 = 0;
+        cnt2 = 0;
+        stopCnt = 0;
+      }
+      setLCDPage(1);
+      break;
+    case ST_STARTING: //1
+      tspeed = 160;
+      if (ptime == 0) {
+        setNextState(ST_RUNNING, 120, 2);
+      }
+      break;
+    case ST_RUNNING: //2
+      tspeed = 148 - (busvoltage * 2.0) + ((cnt1+cnt2)/2);
+      if (tspeed>160)
+        tspeed=160;
+      if (ptime == 0 && cnt1 > maxRounds) {
+        setNextState(ST_STOPPING, 20, 2);
+        travel = random(100) > 50 ? 0 : 1;
+        stopCnt = cnt2;
+      }
+      break;
+    case ST_STOPPING: //3
+      tspeed = 70;
+      //cspeed /= 2;
+      if (ptime == 0 && stopCnt < cnt2) {
+        setNextState(ST_STATION, stopTime, 4);
+      }
+      break;
+    case ST_STATION:
+      tspeed = 0;
+      cspeed = 0;
+      if (ptime == 0) {
+        setNextState(ST_STARTING, 20, 6);
+        stopCnt = 0;
+        cnt1 = 0;
+        cnt2 = 0;
+      }
+      break;
+    case ST_UNDERVOLTAGE:
+      if (busvoltage > 8.0) {
+        state = ST_INIT;
+        ptime = 2;
+      } else {
+        tspeed = 0;
+        cspeed = 0;
+        ptime = 0;
+        stopCnt = 0;
+        led1 = 0;
+        led2 = 0;
+        led3 = 0;
+        // Allow adjusting settings when low-voltage + display of them
+        readSettings();
+        setLCDPage(2);
+      }
+      break;
+    default:
+      state = ST_INIT;
+      Serial.println("?");
+      break;
   }
-  
-  if (pstate!=state) {
+
+  if (busvoltage < 8.0) {
+    state = ST_UNDERVOLTAGE;
+    tspeed = 0;
+    cspeed = 0;
+    ptime = 0;
+  }
+
+  speedAdjust();
+
+  if (pstate != state) {
     lcd.clear();
   }
   updateLCD();
@@ -399,7 +458,7 @@ void loop()
   // Train speed
   analogWrite(5, cspeed);
   setLights();
-  
-  delay(100);  
+
+  delay(100);
 }
 
