@@ -29,8 +29,8 @@ U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
 Adafruit_INA219 ina219;
 TMRpcm pcm;
 
-volatile int cnt1 = 0;
-volatile int cnt2 = 0;
+volatile int cnt1 = 0; // Back counter
+volatile int cnt2 = 0; // Station counter
 
 int stopCnt = 0;
 
@@ -43,6 +43,7 @@ enum {
   ST_STARTING,
   ST_RUNNING,
   ST_STOPPING,
+  ST_STOPATSTATION,
   ST_STATION,
   ST_UNDERVOLTAGE
 };
@@ -363,9 +364,9 @@ void loop()
 
   readINA();
 
-  ptime--;
-  if (ptime < 0)
-    ptime = 0;
+  if (ptime>0)
+    ptime--;
+    
   pstate = state;
 
   dump();
@@ -396,18 +397,23 @@ void loop()
       if (tspeed>160)
         tspeed=160;
       if (ptime == 0 && cnt1 > maxRounds) {
-        setNextState(ST_STOPPING, 20, 2);
-        travel = random(100) > 50 ? 0 : 1;
-        stopCnt = cnt2;
+        setNextState(ST_STOPPING, 30, 1);
+        travel = random(100) > 50 ? 0 : 1;        
       }
       break;
     case ST_STOPPING: //3
       tspeed = 70;
       //cspeed /= 2;
-      if (ptime == 0 && stopCnt < cnt2) {
-        setNextState(ST_STATION, stopTime, 4);
+      if (ptime == 0) {
+        setNextState(ST_STOPATSTATION, 0, 4);
+        stopCnt = cnt2;
       }
       break;
+    case ST_STOPATSTATION: //4
+      if (stopCnt < cnt2) {
+        setNextState(ST_STATION, stopTime, 4);
+      }
+    break;
     case ST_STATION:
       tspeed = 0;
       cspeed = 0;
