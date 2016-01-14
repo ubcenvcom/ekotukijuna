@@ -63,8 +63,11 @@ int cspeed = 0; // Current speed
 byte aspeed = 1; // Adjust speed
 byte ptime = 10; // Pause time
 
-byte runTime;
-byte stopTime;
+int runTime;
+int stopTime;
+
+const byte runSpeedMin=150;
+const byte stopSpeed=70;
 
 float shuntvoltage;
 float busvoltage;
@@ -142,7 +145,7 @@ void readSettings()
   r1 = readAnalogSetting(A0, 1, 255);
   r2 = readAnalogSetting(A1, 1, 255);
 
-  runTime = minDelay + (r1 / 4);
+  runTime = 4*minDelay + (r1 / 3);
   stopTime = minDelay + (r2 / 4);
 }
 
@@ -229,7 +232,7 @@ void setup()
   }
 #endif
 
-  delay(1000);
+  delay(500);
 
   // Train track IR sensors are connected to pins 2,3
   pinMode(2, INPUT);
@@ -311,8 +314,9 @@ void updateLCDBasePage()
   lcdPrintIntAt(8, 0, aspeed);
   lcdPrintIntAt(8, 1, ptime);
   
-  lcdPrintIntAt(13, 0, state);
-  lcdPrintIntAt(13, 1, stopCnt);
+  lcdPrintIntAt(12, 0, state);
+  lcdPrintIntAt(14, 0, (int)loadvoltage);
+  lcdPrintIntAt(12, 1, stopCnt);
 }
 
 void speedAdjust()
@@ -403,33 +407,32 @@ void loop()
       }
       break;
     case ST_RUNNING: //2
-      tspeed = 148 - (busvoltage * 2.0) + ((cnt1+cnt2)/2);
+      tspeed = runSpeedMin - (busvoltage * 2.0) + (cnt1+cnt2);
       if (tspeed>160)
         tspeed=160;
-      if (ptime == 0 && cnt1 > maxRounds) {
-        setNextState(ST_STOPPING, 30, 1);
-        travel = random(100) > 50 ? 0 : 1;        
+      if (ptime == 0 || cnt1 > maxRounds) {
+        setNextState(ST_STOPPING, 30, random(2)+1);
+        travel = random(100) > 50 ? 0 : 1;
       }
       break;
     case ST_STOPPING: //3
-      tspeed = 70;
-      //cspeed /= 2;
+      tspeed = stopSpeed;      
       if (ptime == 0) {
-        setNextState(ST_STOPATSTATION, 4, 4);
-        stopCnt = cnt2;        
+        setNextState(ST_STOPATSTATION, 5+random(10), 4);
+        stopCnt = cnt2;
       }
       break;
     case ST_STOPATSTATION: //4
       if (stopCnt < cnt2 && ptime==0) {
-        setNextState(ST_STATION, stopTime, 10);
+        setNextState(ST_STATION, stopTime+random(20), 10);
         tspeed=0;
       }
     break;
     case ST_STATION:
-      tspeed = 0;
-      cspeed = 0;
+      //tspeed = 0;
+      //cspeed = 0;
       if (ptime == 0) {
-        setNextState(ST_STARTING, 20, 6);
+        setNextState(ST_STARTING, stopTime+random(20), 2+random(6));
         stopCnt = 0;
         cnt1 = 0;
         cnt2 = 0;
