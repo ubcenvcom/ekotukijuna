@@ -409,13 +409,14 @@ void loop()
       tspeed = 70;
       //cspeed /= 2;
       if (ptime == 0) {
-        setNextState(ST_STOPATSTATION, 0, 4);
-        stopCnt = cnt2;
+        setNextState(ST_STOPATSTATION, 4, 4);
+        stopCnt = cnt2;        
       }
       break;
     case ST_STOPATSTATION: //4
-      if (stopCnt < cnt2) {
-        setNextState(ST_STATION, stopTime, 4);
+      if (stopCnt < cnt2 && ptime==0) {
+        setNextState(ST_STATION, stopTime, 10);
+        tspeed=0;
       }
     break;
     case ST_STATION:
