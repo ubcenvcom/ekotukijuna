@@ -19,3 +19,8 @@ Requirements:
 * I2C connected OLED screen for sponsor information
 * (SD card reader, amplifier and speaker for action sounds)
 
+TODO
+====
+* Sounds
+* Adjust lights in some way
+
