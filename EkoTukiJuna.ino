@@ -71,21 +71,28 @@ byte led1 = 0;
 byte led2 = 0;
 byte led3 = 0;
 
+// "Travel" direction, set to random value for display purposes
 byte travel = 0;
 
+// How many trips around the track before stopping at station
 byte maxRounds = 8;
 
 // Track sensor counters
 unsigned long cm = 0;
 volatile unsigned long icm = 0; // IRQ delay
-int irqdelay = 2000;
+const int irqdelay = 2000;
 
-// Default delays
+// Default delays (about 1/10 second)
 byte stationDelay = 10;
 byte startDelay = 10;
 byte stopDelay = 10;
 byte runningTime = 100;
+const byte minDelay=10;
+
+// Adjustment variables
 byte r1, r2;
+
+// IRQ handlers for track sensors
 
 // Single track sensor, back country
 void trackTick1()
@@ -125,14 +132,13 @@ int readAnalogSetting(int pin, int vmin, int vmax)
 }
 
 // Read two analog settings from pins A0 and A1
-// Exact usage is TBD
 void readSettings()
 {
   r1 = readAnalogSetting(A0, 1, 255);
   r2 = readAnalogSetting(A1, 1, 255);
 
-  runTime = 10 + (r1 / 4);
-  stopTime = 10 + (r2 / 4);
+  runTime = minDelay + (r1 / 4);
+  stopTime = minDelay + (r2 / 4);
 }
 
 void draw(void)
@@ -217,9 +223,6 @@ void setup()
     hasSD = true;
   }
 
-  lcdPrintIntAt(10, 0, r1);
-  lcdPrintIntAt(10, 1, r2);
-
   delay(1000);
 
   // Train track IR sensors are connected to pins 2,3
@@ -266,14 +269,16 @@ void lcdPrintIntAt(byte c, byte r, const float a)
 
 void updateLCDDebugPage()
 {
-  lcdPrintIntAt(3, 0, r1);
-  lcdPrintIntAt(3, 1, r2);
+  lcdPrintIntAt(5, 0, runTime);
+  lcdPrintIntAt(5, 1, stopTime);
 
   lcdPrintIntAt(0, 0, cnt1);
   lcdPrintIntAt(0, 1, cnt2);
 
-  lcdPrintIntAt(9, 0, busvoltage);
-  lcdPrintIntAt(9, 1, current_mA);
+  lcdPrintIntAt(2, 0, maxRounds);
+
+  lcdPrintIntAt(11, 0, busvoltage);
+  lcdPrintIntAt(11, 1, current_mA);
 }
 
 void updateLCDBasePage()
