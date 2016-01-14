@@ -311,12 +311,11 @@ void updateLCDBasePage()
 
 void speedAdjust()
 {
-  if (tspeed > cspeed && cspeed < 255)
+  if (tspeed > cspeed && cspeed < (255-aspeed))
     cspeed += aspeed;
-  else if (tspeed < cspeed && cspeed > 0) {
+  else if (tspeed < cspeed && cspeed > aspeed && cspeed>0) {
     cspeed -= aspeed;
   }
-
 }
 
 void setNextState(int s, int p, int a)
