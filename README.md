@@ -12,7 +12,10 @@ Takes 8-12V as input and runs a train. The model also has lights for various pur
 Requirements:
 =============
 * PWM controlled motor controller
+* PWM controlled LED controller
+* 2 Track sensors connected to IRQ pins
 * INA219 for voltage and current measurements
-* I2C character LCD for informational messages
-* I2C OLED screen for sponsor information
-* SD card reader, amplifier and speaker for action sounds
+* I2C connected character LCD for informational messages
+* I2C connected OLED screen for sponsor information
+* (SD card reader, amplifier and speaker for action sounds)
+
