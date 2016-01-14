@@ -16,9 +16,11 @@
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_INA219.h>
 
+#ifdef SOUND
 #include <pcmRF.h>
 #include <TMRpcm.h>
 #include <pcmConfig.h>
+#endif
 
 #define BACKLIGHT_PIN     3
 
@@ -27,7 +29,10 @@
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7); // Set the LCD I2C address
 U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
 Adafruit_INA219 ina219;
+
+#ifdef SOUND
 TMRpcm pcm;
+#endif
 
 volatile int cnt1 = 0; // Back counter
 volatile int cnt2 = 0; // Station counter
@@ -203,8 +208,6 @@ void setup()
   analogWrite(6, 0);
   analogWrite(10, 0);
 
-  pcm.speakerPin = 9;
-
   Serial.begin(115200);
 
   lcd_init();
@@ -215,6 +218,8 @@ void setup()
   readSettings();
 
   readINA();
+#ifdef SOUND
+  pcm.speakerPin = 9;
 
   if (!SD.begin(SD_ChipSelectPin)) {
     errorMsg("SD!");
@@ -222,6 +227,7 @@ void setup()
   } else {
     hasSD = true;
   }
+#endif
 
   delay(1000);
 
