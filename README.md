@@ -23,4 +23,4 @@ TODO
 ====
 * Sounds
 * Adjust lights in some way
-
+* Add switch handling
