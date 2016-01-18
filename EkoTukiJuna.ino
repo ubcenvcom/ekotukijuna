@@ -97,9 +97,6 @@ byte stopDelay = 10;
 byte runningTime = 100;
 const byte minDelay=10;
 
-// Adjustment variables
-byte r1, r2;
-
 // IRQ handlers for track sensors
 
 // Single track sensor, back country
@@ -142,11 +139,12 @@ int readAnalogSetting(int pin, int vmin, int vmax)
 // Read two analog settings from pins A0 and A1
 void readSettings()
 {
-  r1 = readAnalogSetting(A0, 1, 255);
-  r2 = readAnalogSetting(A1, 1, 255);
-
-  runTime = 4*minDelay + (r1 / 3);
-  stopTime = minDelay + (r2 / 4);
+  int r;
+  r = readAnalogSetting(A0, 1, 255);
+  runTime = 4*minDelay + r;
+  
+  r = readAnalogSetting(A1, 1, 255);
+  stopTime = minDelay + r;
 }
 
 void draw(void)
