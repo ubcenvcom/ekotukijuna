@@ -27,8 +27,12 @@
 #define DEBUG 1
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7); // Set the LCD I2C address
-U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
+
 Adafruit_INA219 ina219;
+
+#ifdef TFT_128x64
+U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
+#endif
 
 #ifdef SOUND
 TMRpcm pcm;
@@ -147,6 +151,7 @@ void readSettings()
   stopTime = minDelay + r;
 }
 
+#ifdef TFT_128x64
 void draw(void)
 {
   u8g.setFont(u8g_font_unifont);
@@ -179,6 +184,7 @@ void draw(void)
       break;
   }
 }
+#endif
 
 void readINA(void)
 {
@@ -214,7 +220,10 @@ void setup()
   lcd_init();
 
   ina219.begin();
+
+#ifdef TFT_128x64  
   u8g.setColorIndex(1);
+#endif
 
   readSettings();
 
@@ -369,10 +378,13 @@ void loop()
 {
   cm = millis();
 
+
+#ifdef TFT_128x64
   u8g.firstPage();
   do {
     draw();
   } while ( u8g.nextPage());
+#endif
 
   readINA();
 
