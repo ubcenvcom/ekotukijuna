@@ -8,7 +8,12 @@
 
 */
 
+// Define is sound support (SD card + amplifier) is connected
+//#define SOUND 1
 #define SD_ChipSelectPin 4
+
+// Define if BW TFT screen is connected to i2c
+#define TFT_128x64 1
 
 #include <SPI.h>
 #include <Wire.h>
