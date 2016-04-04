@@ -53,6 +53,14 @@ byte lcdPage = 1;
 bool hasSD = false;
 
 enum {
+  NORMAL,
+  BIKE,
+  DEMO
+} world_mode_t;
+
+byte mode=BIKE;
+
+enum {
   ST_INIT = 0,
   ST_STARTING,
   ST_RUNNING,
@@ -60,7 +68,7 @@ enum {
   ST_STOPATSTATION,
   ST_STATION,
   ST_UNDERVOLTAGE
-};
+} train_mode_t;
 
 // Current state
 byte state = ST_INIT;
