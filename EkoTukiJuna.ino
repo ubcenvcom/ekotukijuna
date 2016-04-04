@@ -58,7 +58,7 @@ enum {
   DEMO
 } world_mode_t;
 
-byte mode=BIKE;
+byte mode=NORMAL;
 
 enum {
   ST_INIT = 0,
@@ -101,6 +101,19 @@ byte travel = 0;
 
 // How many trips around the track before stopping at station
 byte maxRounds = 8;
+
+// Sponsor display helpers
+enum {
+  SPONS_EKOTUKI=0,
+  SPONS_FOLI,
+  SPONS_TURKU_ENERGIA,
+  SPONS_LSJH,
+  SPONS_TSP,
+  SPONS_CNT
+} sponsors_t;
+byte sponsTicker=0;
+const int sponsDelay = 2000;
+unsigned long scm = 0;
 
 // Track sensor counters
 unsigned long cm = 0;
@@ -165,30 +178,94 @@ void readSettings()
 }
 
 #ifdef TFT_128x64
+
+void drawFoli(void)
+{
+u8g.drawStr(0, 22, "Folilla");
+u8g.drawStr(0, 34, "Kotiin!");
+u8g.drawStr(0, 42, "www.foli.fi");  
+}
+
+void drawTurkuEnergia(void)
+{
+u8g.drawStr(0, 22, "Turku");
+u8g.drawStr(0, 34, "Energia");
+}
+
+void drawLSJH(void)
+{
+u8g.drawStr(0, 22, "LSJH");
+}
+
+void drawTSP(void)
+{
+u8g.drawStr(0, 22, "TSP");
+}
+
+void drawEkotuki(void)
+{
+u8g.drawStr(10, 22, "Ekotuki");
+u8g.drawStr(20, 34, " Turku");
+}
+
+void drawSponsor(void)
+{
+if (cm>scm+sponsDelay) {
+  sponsTicker++;
+  if (sponsTicker>=SPONS_CNT)
+    sponsTicker=SPONS_EKOTUKI;
+  scm=cm;
+} else {
+  //return;
+}
+switch (sponsTicker) {
+  case SPONS_EKOTUKI:
+    drawEkotuki();
+  break;
+  case SPONS_FOLI:
+    drawFoli();
+  break;
+  case SPONS_TURKU_ENERGIA:
+    drawTurkuEnergia();
+  break;
+  case SPONS_LSJH:
+    drawLSJH();
+  break;
+  case SPONS_TSP:
+    drawTSP();
+  break;
+}
+
+}
+
 void draw(void)
 {
   u8g.setFont(u8g_font_unifont);
   switch (state) {
     case ST_STARTING:
-      u8g.drawStr(0, 22, "Ekotuki Turku");
-      //u8g.drawStr(0, 34, " Turku!");
+      drawEkotuki();
       break;
     case ST_RUNNING:
-      u8g.drawStr(0, 22, "Tunnin Juna");
-      //u8g.drawStr(0, 34, " Juna!");
+      drawSponsor();
       break;
     case ST_STOPPING:
-      u8g.drawStr(0, 22, "Folilla");
-      u8g.drawStr(0, 34, "Kotiin!");
-      u8g.drawStr(0, 42, "www.foli.fi");
+      if (travel == 0) {
+        u8g.drawStr(0, 22, "Helsingista");        
+        u8g.drawStr(20, 34, "17:48");
+      } else {
+        u8g.drawStr(0, 22, "Turusta");        
+        u8g.drawStr(20, 46, "15:23");
+      }      
       break;
     case ST_STATION:
       if (travel == 0) {
         u8g.drawStr(0, 22, "Turku");
         u8g.drawStr(0, 34, "Helsinki");
+        u8g.drawStr(20, 46, "13:30");
       } else {
         u8g.drawStr(0, 22, "Helsinki");
         u8g.drawStr(0, 34, "Turku");
+        u8g.drawStr(20, 46, "16:10");
       }
       break;
     case ST_UNDERVOLTAGE:
@@ -230,6 +307,8 @@ void setup()
 
   Serial.begin(115200);
 
+  cm = millis();
+
   lcd_init();
 
   ina219.begin();
@@ -262,7 +341,7 @@ void setup()
 
   lcd.clear();
 
-  setLights();
+  setLights();  
 }
 
 void setLCDPage(int page)
@@ -305,6 +384,8 @@ void updateLCDDebugPage()
   lcdPrintIntAt(0, 1, cnt2);
 
   lcdPrintIntAt(2, 0, maxRounds);
+  lcdPrintIntAt(2, 1, mode);
+  lcdPrintIntAt(3, 1, sponsTicker);
 
   lcdPrintIntAt(11, 0, busvoltage);
   lcdPrintIntAt(11, 1, current_mA);
@@ -387,28 +468,17 @@ void dump()
 #endif
 }
 
-void loop()
+void loopDemoMode()
 {
-  cm = millis();
+readSettings();
+setLCDPage(2);
+state = ST_RUNNING;
+delay(500);
+}
 
-
-#ifdef TFT_128x64
-  u8g.firstPage();
-  do {
-    draw();
-  } while ( u8g.nextPage());
-#endif
-
-  readINA();
-
-  if (ptime>0)
-    ptime--;
-    
-  pstate = state;
-
-  dump();
-
-  switch (state) {
+void loopNormalMode()
+{
+    switch (state) {
     case ST_INIT: //0
       led1 = 64;
       led2 = 64;
@@ -462,10 +532,16 @@ void loop()
       }
       break;
     case ST_UNDERVOLTAGE:
-      if (busvoltage > 8.0) {
+      if (busvoltage > 8.0) { // Go to initial state if we get enough power!
         state = ST_INIT;
+        mode = NORMAL;
         ptime = 2;
-      } else {
+      } else if (busvoltage<4.9) { // Assume USB powered development/demo mode if voltage is under 4.9
+        mode = DEMO;
+        state = ST_RUNNING;
+        readSettings();
+        setLCDPage(2);
+      } else { // Else 
         tspeed = 0;
         cspeed = 0;
         ptime = 0;
@@ -483,12 +559,47 @@ void loop()
       Serial.println("?");
       break;
   }
+}
 
-  if (busvoltage < 8.0) {
-    state = ST_UNDERVOLTAGE;
-    tspeed = 0;
-    cspeed = 0;
-    ptime = 0;
+void loop()
+{
+  cm = millis();
+
+#ifdef TFT_128x64
+  u8g.firstPage();
+  do {
+    draw();
+  } while ( u8g.nextPage());
+#endif
+
+  readINA();
+
+  if (ptime>0)
+    ptime--;
+    
+  pstate = state;
+
+  dump();
+
+  switch (mode) {
+    case NORMAL:
+    case BIKE:
+      loopNormalMode();
+      if (busvoltage < 8.0 && mode==NORMAL) {
+        state = ST_UNDERVOLTAGE;
+        tspeed = 0;
+        cspeed = 0;
+        ptime = 0;
+      }
+    break;
+    case DEMO:
+      if (busvoltage > 5.0)
+        mode=NORMAL;
+      else
+        loopDemoMode();
+    break;
+    default:
+      mode=NORMAL;
   }
 
   speedAdjust();
