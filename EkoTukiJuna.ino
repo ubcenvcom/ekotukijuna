@@ -37,6 +37,12 @@ Adafruit_INA219 ina219;
 
 #ifdef TFT_128x64
 U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
+
+#include "lsjh.h"
+#include "foli_logo.h"
+#include "tsp_logo.h"
+#include "te_logo.h"
+#include "ekotuki_logo.h"
 #endif
 
 #ifdef SOUND
@@ -181,31 +187,27 @@ void readSettings()
 
 void drawFoli(void)
 {
-u8g.drawStr(0, 22, "Folilla");
-u8g.drawStr(0, 34, "Kotiin!");
-u8g.drawStr(0, 42, "www.foli.fi");  
+u8g.drawXBMP( 0, 0, foli_logo_width, foli_logo_height, foli_logo_bits);
 }
 
 void drawTurkuEnergia(void)
 {
-u8g.drawStr(0, 22, "Turku");
-u8g.drawStr(0, 34, "Energia");
+u8g.drawXBMP( 0, 0, te_logo_width, te_logo_height, te_logo_bits);
 }
 
 void drawLSJH(void)
 {
-u8g.drawStr(0, 22, "LSJH");
+u8g.drawXBMP( 0, 0, lsjh_width, lsjh_height, lsjh_bits);
 }
 
 void drawTSP(void)
 {
-u8g.drawStr(0, 22, "TSP");
+u8g.drawXBMP( 0, 0, tsp_logo_width, tsp_logo_height, tsp_logo_bits);
 }
 
 void drawEkotuki(void)
 {
-u8g.drawStr(10, 22, "Ekotuki");
-u8g.drawStr(20, 34, " Turku");
+u8g.drawXBMP( 0, 0, ekotuki_logo_width, ekotuki_logo_height, ekotuki_logo_bits);
 }
 
 void drawSponsor(void)
