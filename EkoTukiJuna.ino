@@ -28,7 +28,7 @@
 #endif
 
 #define BACKLIGHT_PIN     3
-
+#define DISPLAY_V_A 1
 #define DEBUG 1
 
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7); // Set the LCD I2C address
@@ -84,13 +84,14 @@ byte pstate = state;
 int tspeed = 0; // Target speed
 int cspeed = 0; // Current speed
 byte aspeed = 1; // Adjust speed
-byte ptime = 10; // Pause time
+byte ptime = 10; // Pause time, initial startup delay
 
 int runTime;
 int stopTime;
 
 const byte runSpeedMin=150;
-const byte stopSpeed=70;
+const byte runSpeedMax=160;
+const byte stopSpeed=80;
 
 float shuntvoltage;
 float busvoltage;
@@ -105,8 +106,8 @@ byte led3 = 0;
 // "Travel" direction, set to random value for display purposes
 byte travel = 0;
 
-// How many trips around the track before stopping at station
-byte maxRounds = 8;
+// How many trips around the track before stopping at station, max
+byte maxRounds = 9;
 
 // Sponsor display helpers
 enum {
@@ -120,6 +121,10 @@ enum {
 byte sponsTicker=0;
 const int sponsDelay = 2000;
 unsigned long scm = 0;
+
+// Update delay
+const int updateDelay = 500;
+unsigned long ucm = 0;
 
 // Track sensor counters
 unsigned long cm = 0;
@@ -241,8 +246,7 @@ switch (sponsTicker) {
 }
 
 void draw(void)
-{
-  u8g.setFont(u8g_font_unifont);
+{  
   switch (state) {
     case ST_STARTING:
       drawEkotuki();
@@ -251,28 +255,31 @@ void draw(void)
       drawSponsor();
       break;
     case ST_STOPPING:
+    case ST_STOPATSTATION:
+      u8g.setFont(u8g_font_unifont);
       if (travel == 0) {
         u8g.drawStr(0, 22, "Helsingista");        
-        u8g.drawStr(20, 34, "17:48");
+        u8g.drawStr(76, 22, "17:48");
       } else {
         u8g.drawStr(0, 22, "Turusta");        
-        u8g.drawStr(20, 46, "15:23");
+        u8g.drawStr(76, 22, "15:23");
       }      
       break;
     case ST_STATION:
+      u8g.setFont(u8g_font_unifont);
       if (travel == 0) {
+        u8g.drawStr(0, 22, "Helsinki");        
+        u8g.drawStr(76, 22, "13:30");
+      } else {        
         u8g.drawStr(0, 22, "Turku");
-        u8g.drawStr(0, 34, "Helsinki");
-        u8g.drawStr(20, 46, "13:30");
-      } else {
-        u8g.drawStr(0, 22, "Helsinki");
-        u8g.drawStr(0, 34, "Turku");
-        u8g.drawStr(20, 46, "16:10");
+        u8g.drawStr(76, 22, "16:10");
       }
       break;
     case ST_UNDERVOLTAGE:
-      u8g.drawStr(0, 22, "Sahkoverkkossa");
-      u8g.drawStr(30, 34, "vikaa");
+      u8g.setFont(u8g_font_unifont);
+      u8g.drawStr(20, 22, "!Verkkovika!");
+      u8g.drawStr(40, 34, "Polje");
+      u8g.drawStr(40, 34, "Lujempaa!");
       break;
   }
 }
@@ -379,15 +386,15 @@ void lcdPrintIntAt(byte c, byte r, const float a)
 
 void updateLCDDebugPage()
 {
-  lcdPrintIntAt(5, 0, runTime);
-  lcdPrintIntAt(5, 1, stopTime);
-
   lcdPrintIntAt(0, 0, cnt1);
   lcdPrintIntAt(0, 1, cnt2);
-
+  
   lcdPrintIntAt(2, 0, maxRounds);
   lcdPrintIntAt(2, 1, mode);
   lcdPrintIntAt(3, 1, sponsTicker);
+
+  lcdPrintIntAt(5, 0, runTime);
+  lcdPrintIntAt(5, 1, stopTime);
 
   lcdPrintIntAt(11, 0, busvoltage);
   lcdPrintIntAt(11, 1, current_mA);
@@ -398,28 +405,32 @@ void updateLCDBasePage()
   lcdPrintIntAt(0, 0, cnt1);
   lcdPrintIntAt(0, 1, cnt2);
 
-#ifdef DISPLAY_V_A
-  lcd.setCursor(9, 0);
+  lcdPrintIntAt(2, 0, state);  
+  lcdPrintIntAt(2, 1, stopCnt);
+  lcdPrintIntAt(3, 0, mode);  
+
+  lcdPrintIntAt(5, 0, tspeed);
+  lcdPrintIntAt(5, 1, cspeed);
+
+  lcdPrintIntAt(9, 0, aspeed);
+  lcdPrintIntAt(9, 1, ptime);
+
+  lcdPrintIntAt(13, 0, busvoltage);
+  lcdPrintIntAt(13, 1, current_mA);
+
+#ifdef DISPLAY_V_A_XXX
+  lcd.setCursor(13, 0);
   if (busvoltage > 9.0)
     lcd.print((int)busvoltage);
   else
     lcd.print(busvoltage);
-  lcd.setCursor(9, 1);
+  lcd.setCursor(13, 1);
   if (current_mA > 100.0)
     lcd.print((int)current_mA);
   else
     lcd.print(current_mA);
 #endif    
 
-  lcdPrintIntAt(3, 0, tspeed);
-  lcdPrintIntAt(3, 1, cspeed);
-
-  lcdPrintIntAt(8, 0, aspeed);
-  lcdPrintIntAt(8, 1, ptime);
-  
-  lcdPrintIntAt(12, 0, state);
-  lcdPrintIntAt(14, 0, (int)loadvoltage);
-  lcdPrintIntAt(12, 1, stopCnt);
 }
 
 void speedAdjust()
@@ -482,9 +493,9 @@ void loopNormalMode()
 {
     switch (state) {
     case ST_INIT: //0
-      led1 = 64;
-      led2 = 64;
-      led3 = 64;
+      led1 += 2;
+      led2 += 2;
+      led3 += 2;
       if (ptime == 0) {
         state = ST_STARTING;
         ptime = 20;
@@ -492,19 +503,22 @@ void loopNormalMode()
         cnt1 = 0;
         cnt2 = 0;
         stopCnt = 0;
+        led1 = 64;
+        led2 = 64;
+        led3 = 64;
       }
       setLCDPage(1);
       break;
     case ST_STARTING: //1
-      tspeed = 160;
+      tspeed = runSpeedMax;
       if (ptime == 0) {
         setNextState(ST_RUNNING, 120, 2);
       }
       break;
     case ST_RUNNING: //2
-      tspeed = runSpeedMin - (busvoltage * 2.0) + (cnt1+cnt2);
-      if (tspeed>160)
-        tspeed=160;
+      tspeed = runSpeedMin - (busvoltage) + (cnt1+cnt2);
+      if (tspeed>runSpeedMax)
+        tspeed=runSpeedMax;
       if (ptime == 0 || cnt1 > maxRounds) {
         setNextState(ST_STOPPING, 30, random(2)+1);
         travel = random(100) > 50 ? 0 : 1;
@@ -515,6 +529,12 @@ void loopNormalMode()
       if (ptime == 0) {
         setNextState(ST_STOPATSTATION, 5+random(10), 4);
         stopCnt = cnt2;
+        if (random(10)>5)
+          led2=0;
+        if (random(10)>5)
+          led3=0;
+        if (random(10)>5)
+          led3=0;
       }
       break;
     case ST_STOPATSTATION: //4
@@ -531,6 +551,13 @@ void loopNormalMode()
         stopCnt = 0;
         cnt1 = 0;
         cnt2 = 0;
+        
+        if (led2==0)
+          led2=64;
+        if (led3==0)
+          led3=64;
+        if (led3==0)
+          led3=64;
       }
       break;
     case ST_UNDERVOLTAGE:
@@ -563,16 +590,19 @@ void loopNormalMode()
   }
 }
 
-void loop()
+void updateTFT()
 {
-  cm = millis();
-
 #ifdef TFT_128x64
   u8g.firstPage();
   do {
     draw();
   } while ( u8g.nextPage());
-#endif
+#endif 
+}
+
+void loop()
+{
+  cm = millis();
 
   readINA();
 
@@ -591,7 +621,9 @@ void loop()
         state = ST_UNDERVOLTAGE;
         tspeed = 0;
         cspeed = 0;
-        ptime = 0;
+        ptime = 0;        
+        errorMsg("LOW VOLTAGE");
+        delay(100);
       }
     break;
     case DEMO:
@@ -604,16 +636,21 @@ void loop()
       mode=NORMAL;
   }
 
+  // Train speed
   speedAdjust();
+  analogWrite(5, cspeed);
 
   if (pstate != state) {
     lcd.clear();
   }
   updateLCD();
-
-  // Train speed
-  analogWrite(5, cspeed);
-  setLights();
+  
+  // Do things that are not needed on every loop
+  if (cm>ucm+updateDelay) {
+    updateTFT();
+    setLights();
+    ucm=cm;
+  }  
 
   delay(100);
 }
