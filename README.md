@@ -3,11 +3,11 @@ Turku Ekotuki trainset controller
 
 Pedal powered trainset controller, using Arduino and a bunch of other components.
 
-This is very much work in progress at this.
+This is very much work in progress at this time.
 
 What does it do ?
 =================
-Takes 8-12V as input and runs a train. The model also has lights for various purposes.
+Takes 8-12V as input and runs a train set. The model also has lights for various purposes.
 
 Requirements:
 =============
