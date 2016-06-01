@@ -10,6 +10,10 @@
 
 // Define is sound support (SD card + amplifier) is connected
 //#define SOUND 1
+
+// ehheh
+#define ONE_DIRECTION 1
+
 #define SD_ChipSelectPin 4
 
 // Define if BW TFT screen is connected to i2c
@@ -85,6 +89,12 @@ int tspeed = 0; // Target speed
 int cspeed = 0; // Current speed
 byte aspeed = 1; // Adjust speed
 byte ptime = 10; // Pause time, initial startup delay
+
+enum {
+  TRAIN_FORWARD,
+  TRAIN_BACKWARD
+} train_direction_t;
+
 
 int runTime;
 int stopTime;
