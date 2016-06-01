@@ -178,7 +178,7 @@ void lcd_init()
   lcd.home();
   lcd.print("Turku Ekotuki");
   lcd.setCursor(0, 1);
-  lcd.print("J-002");
+  lcd.print("J-003");
 }
 
 int readAnalogSetting(int pin, int vmin, int vmax)
