@@ -92,16 +92,16 @@ byte ptime = 10; // Pause time, initial startup delay
 
 enum {
   TRAIN_FORWARD,
-  TRAIN_BACKWARD
+  TRAIN_BACKWARD,
+  TRAIN_BRAKE
 } train_direction_t;
-
 
 int runTime;
 int stopTime;
 
-const byte runSpeedMin=150;
-const byte runSpeedMax=160;
-const byte stopSpeed=80;
+const byte runSpeedMin=170;
+const byte runSpeedMax=190;
+const byte stopSpeed=120;
 
 float shuntvoltage;
 float busvoltage;
@@ -115,6 +115,7 @@ byte led3 = 0;
 
 // "Travel" direction, set to random value for display purposes
 byte travel = 0;
+byte traindirection = TRAIN_BRAKE;
 
 // How many trips around the track before stopping at station, max
 byte maxRounds = 9;
@@ -258,7 +259,7 @@ switch (sponsTicker) {
 void draw(void)
 {  
   switch (state) {
-    case ST_STARTING:
+    case ST_INIT:
       drawEkotuki();
       break;
     case ST_RUNNING:
@@ -275,6 +276,7 @@ void draw(void)
         u8g.drawStr(76, 22, "15:23");
       }      
       break;
+    case ST_STARTING:
     case ST_STATION:
       u8g.setFont(u8g_font_unifont);
       if (travel == 0) {
@@ -282,7 +284,7 @@ void draw(void)
         u8g.drawStr(76, 22, "13:30");
       } else {        
         u8g.drawStr(0, 22, "Turku");
-        u8g.drawStr(76, 22, "16:10");
+        u8g.drawStr(76, 22, "16:10");        
       }
       break;
     case ST_UNDERVOLTAGE:
@@ -309,20 +311,31 @@ void errorMsg(const char *msg)
   lcd.home();
   lcd.print(msg);
   Serial.println(msg);
-  delay(100);
+  delay(400);
 }
 
 void setup()
 {
   // setup PWM output pins
   // Pins 5,6 and 10 are connect to a motor controller, we abuse it a bit
-  pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);
-  pinMode(10, OUTPUT);
+  
+  pinMode(5, OUTPUT); // Train speed
+  pinMode(6, OUTPUT);  // Abused for LED
+  pinMode(10, OUTPUT); // Abused for LED
 
   analogWrite(5, 0);
   analogWrite(6, 0);
   analogWrite(10, 0);
+
+  pinMode(9, OUTPUT);
+  analogWrite(9, 0);
+
+  // Direction control
+  pinMode(4, OUTPUT);
+  pinMode(7, OUTPUT);
+
+  digitalWrite(4, LOW);
+  digitalWrite(7, LOW);
 
   Serial.begin(115200);
 
@@ -499,6 +512,24 @@ state = ST_RUNNING;
 delay(500);
 }
 
+void setTrainDirection(byte d)
+{
+switch (d) {
+  case TRAIN_FORWARD:
+    digitalWrite(4, HIGH);
+    digitalWrite(7, LOW);
+  break;
+  case TRAIN_BACKWARD:
+    digitalWrite(4, LOW);
+    digitalWrite(7, HIGH);
+  break;
+  case TRAIN_BRAKE:
+  default: ;
+    digitalWrite(4, LOW);
+    digitalWrite(7, LOW);
+  }  
+}
+
 void loopNormalMode()
 {
     switch (state) {
@@ -509,20 +540,21 @@ void loopNormalMode()
       if (ptime == 0) {
         state = ST_STARTING;
         ptime = 20;
-        aspeed = 4;
+        aspeed = 6;
         cnt1 = 0;
         cnt2 = 0;
         stopCnt = 0;
         led1 = 64;
         led2 = 64;
         led3 = 64;
+        traindirection=TRAIN_FORWARD;
       }
       setLCDPage(1);
       break;
     case ST_STARTING: //1
       tspeed = runSpeedMax;
       if (ptime == 0) {
-        setNextState(ST_RUNNING, 120, 2);
+        setNextState(ST_RUNNING, 120, 4);
       }
       break;
     case ST_RUNNING: //2
@@ -556,8 +588,9 @@ void loopNormalMode()
     case ST_STATION:
       //tspeed = 0;
       //cspeed = 0;
+      traindirection=TRAIN_BRAKE;
       if (ptime == 0) {
-        setNextState(ST_STARTING, stopTime+random(20), 2+random(6));
+        setNextState(ST_STARTING, stopTime+random(20), 6);
         stopCnt = 0;
         cnt1 = 0;
         cnt2 = 0;
@@ -568,6 +601,11 @@ void loopNormalMode()
           led3=64;
         if (led3==0)
           led3=64;
+        if (travel==0)
+          traindirection=TRAIN_FORWARD;
+        else
+          traindirection=TRAIN_BACKWARD;
+          
       }
       break;
     case ST_UNDERVOLTAGE:
@@ -575,10 +613,11 @@ void loopNormalMode()
         state = ST_INIT;
         mode = NORMAL;
         ptime = 2;
+        errorMsg("VOLTAGE UP");
       } else if (busvoltage<4.9) { // Assume USB powered development/demo mode if voltage is under 4.9
         mode = DEMO;
         state = ST_RUNNING;
-        readSettings();
+        readSettings();         
         setLCDPage(2);
       } else { // Else 
         tspeed = 0;
@@ -610,6 +649,14 @@ void updateTFT()
 #endif 
 }
 
+void trainUpdate()
+{  
+  // Train speed
+  speedAdjust();    
+  setTrainDirection(traindirection);
+  analogWrite(5, cspeed);  
+}
+
 void loop()
 {
   cm = millis();
@@ -632,8 +679,7 @@ void loop()
         tspeed = 0;
         cspeed = 0;
         ptime = 0;        
-        errorMsg("LOW VOLTAGE");
-        delay(100);
+        errorMsg("LOW VOLTAGE");        
       }
     break;
     case DEMO:
@@ -646,9 +692,7 @@ void loop()
       mode=NORMAL;
   }
 
-  // Train speed
-  speedAdjust();
-  analogWrite(5, cspeed);
+  trainUpdate();
 
   if (pstate != state) {
     lcd.clear();
