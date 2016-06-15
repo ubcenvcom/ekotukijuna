@@ -19,11 +19,12 @@
 // Define if BW TFT screen is connected to i2c
 #define TFT_128x64 1
 
-#include <SPI.h>
+//#include <SPI.h>
 #include <Wire.h>
 #include <U8glib.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_INA219.h>
+#include <IRremote.h>
 
 #ifdef SOUND
 #include <pcmRF.h>
@@ -35,9 +36,13 @@
 #define DISPLAY_V_A 1
 #define DEBUG 1
 
+#define IR_PIN 12
+
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7); // Set the LCD I2C address
 
 Adafruit_INA219 ina219;
+
+IRrecv irrecv(IR_PIN);
 
 #ifdef TFT_128x64
 U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
@@ -182,10 +187,8 @@ void lcd_init()
 }
 
 int readAnalogSetting(int pin, int vmin, int vmax)
-{
-  int v = analogRead(pin);
-  v = map(v, 0, 1024, vmin, vmax);
-  return v;
+{  
+  return map(analogRead(pin), 0, 1024, vmin, vmax);  
 }
 
 // Read two analog settings from pins A0 and A1
@@ -336,6 +339,8 @@ void setup()
 
   digitalWrite(4, LOW);
   digitalWrite(7, LOW);
+
+  irrecv.enableIRIn();
 
   Serial.begin(115200);
 
@@ -657,11 +662,31 @@ void trainUpdate()
   analogWrite(5, cspeed);  
 }
 
+void readIR()
+{
+  decode_results results;
+
+  if (!irrecv.decode(&results))
+    return;
+
+  switch (results.value) {
+    case 0xFFFFFFFF:
+      Serial.println("*");
+    break;
+    default:
+      Serial.println(results.value, HEX);  
+  }
+
+  irrecv.resume();
+}
+
 void loop()
 {
   cm = millis();
 
   readINA();
+
+  readIR();
 
   if (ptime>0)
     ptime--;
