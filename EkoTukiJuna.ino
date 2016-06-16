@@ -21,8 +21,8 @@
 #include <IRremote.h>
 
 #define BACKLIGHT_PIN     3
-#define DISPLAY_V_A 1
-#define DEBUG_INFO 1
+//#define DISPLAY_V_A 1
+//#define DEBUG_INFO 1
 
 #define IR_PIN 12
 
@@ -32,9 +32,9 @@ Adafruit_INA219 ina219;
 
 IRrecv irrecv(IR_PIN);
 
-//#define SPONSOR_LOGO_LSHJ 1
-//#define SPONSOR_LOGO_FOLI 1
-//#define SPONSOR_LOGO_TSP 1
+#define SPONSOR_LOGO_LSHJ 1
+#define SPONSOR_LOGO_FOLI 1
+#define SPONSOR_LOGO_TSP 1
 //#define SPONSOR_LOGO_TE 1
 #define SPONSOR_LOGO_EKOTUKI 1
 
