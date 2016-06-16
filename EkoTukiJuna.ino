@@ -34,7 +34,7 @@
 
 #define BACKLIGHT_PIN     3
 #define DISPLAY_V_A 1
-#define DEBUG 1
+// #define DEBUG_INFO 1
 
 #define IR_PIN 12
 
@@ -44,24 +44,45 @@ Adafruit_INA219 ina219;
 
 IRrecv irrecv(IR_PIN);
 
+//#define SPONSOR_LOGO_LSHJ 1
+//#define SPONSOR_LOGO_FOLI 1
+//#define SPONSOR_LOGO_TSP 1
+//#define SPONSOR_LOGO_TE 1
+#define SPONSOR_LOGO_EKOTUKI 1
+
 #ifdef TFT_128x64
 U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
 
+#ifdef SPONSOR_LOGO_LSJH
 #include "lsjh.h"
+#endif
+
+#ifdef SPONSOR_LOGO_FOLI
 #include "foli_logo.h"
+#endif
+
+#ifdef SPONSOR_LOGO_TSP
 #include "tsp_logo.h"
+#endif
+
+#ifdef SPONSOR_LOGO_TE
 #include "te_logo.h"
+#endif
+
+#ifdef SPONSOR_LOGO_EKOTUKI
 #include "ekotuki_logo.h"
+#endif
+
 #endif
 
 #ifdef SOUND
 TMRpcm pcm;
 #endif
 
-volatile int cnt1 = 0; // Back counter
-volatile int cnt2 = 0; // Station counter
+volatile byte cnt1 = 0; // Back counter
+volatile byte cnt2 = 0; // Station counter
 
-int stopCnt = 0;
+byte stopCnt = 0;
 
 byte lcdPage = 1;
 
@@ -70,6 +91,7 @@ bool hasSD = false;
 enum {
   NORMAL,
   BIKE,
+  MANUAL,
   DEMO
 } world_mode_t;
 
@@ -181,9 +203,7 @@ void lcd_init()
   lcd.setBacklight(BACKLIGHT_ON);
   lcd.begin(16, 2);
   lcd.home();
-  lcd.print("Turku Ekotuki");
-  lcd.setCursor(0, 1);
-  lcd.print("J-003");
+  lcd.print("Turku Ekotuki v003");
 }
 
 int readAnalogSetting(int pin, int vmin, int vmax)
@@ -193,40 +213,46 @@ int readAnalogSetting(int pin, int vmin, int vmax)
 
 // Read two analog settings from pins A0 and A1
 void readSettings()
-{
-  int r;
-  r = readAnalogSetting(A0, 1, 255);
-  runTime = 4*minDelay + r;
-  
-  r = readAnalogSetting(A1, 1, 255);
-  stopTime = minDelay + r;
+{  
+  runTime = 4*minDelay + readAnalogSetting(A0, 1, 255);  
+  stopTime = minDelay + readAnalogSetting(A1, 1, 255);
 }
 
 #ifdef TFT_128x64
 
 void drawFoli(void)
 {
+#ifdef SPONSOR_LOGO_FOLI
 u8g.drawXBMP( 0, 0, foli_logo_width, foli_logo_height, foli_logo_bits);
+#endif
 }
 
 void drawTurkuEnergia(void)
 {
+#ifdef SPONSOR_LOGO_TE
 u8g.drawXBMP( 0, 0, te_logo_width, te_logo_height, te_logo_bits);
+#endif
 }
 
 void drawLSJH(void)
 {
+#ifdef SPONSOR_LOGO_LSJH
 u8g.drawXBMP( 0, 0, lsjh_width, lsjh_height, lsjh_bits);
+#endif
 }
 
 void drawTSP(void)
 {
+#ifdef SPONSOR_LOGO_TSP
 u8g.drawXBMP( 0, 0, tsp_logo_width, tsp_logo_height, tsp_logo_bits);
+#endif
 }
 
 void drawEkotuki(void)
 {
+#ifdef SPONSOR_LOGO_EKOTUKI
 u8g.drawXBMP( 0, 0, ekotuki_logo_width, ekotuki_logo_height, ekotuki_logo_bits);
+#endif
 }
 
 void drawSponsor(void)
@@ -414,6 +440,7 @@ void lcdPrintIntAt(byte c, byte r, const float a)
 
 void updateLCDDebugPage()
 {
+#ifdef DEBUG_INFO 
   lcdPrintIntAt(0, 0, cnt1);
   lcdPrintIntAt(0, 1, cnt2);
   
@@ -426,6 +453,9 @@ void updateLCDDebugPage()
 
   lcdPrintIntAt(11, 0, busvoltage);
   lcdPrintIntAt(11, 1, current_mA);
+#else
+  updateLCDBasePage();
+#endif
 }
 
 void updateLCDBasePage()
@@ -491,7 +521,7 @@ void setLights()
 
 void dump()
 {
-#ifdef DEBUG
+#ifdef DEBUG_INFO
   Serial.print("BV:"); Serial.print(busvoltage); Serial.println(" V");
   Serial.print("SV:"); Serial.print(shuntvoltage); Serial.println(" mV");
   Serial.print("LV:"); Serial.print(loadvoltage); Serial.println(" V");
@@ -644,6 +674,11 @@ void loopNormalMode()
   }
 }
 
+void loopManualMode()
+{
+  
+}
+
 void updateTFT()
 {
 #ifdef TFT_128x64
@@ -669,15 +704,57 @@ void readIR()
   if (!irrecv.decode(&results))
     return;
 
+  irrecv.resume();
+
   switch (results.value) {
     case 0xFFFFFFFF:
       Serial.println("*");
     break;
-    default:
-      Serial.println(results.value, HEX);  
-  }
+    // 0-9
 
-  irrecv.resume();
+    // Controls
+    case 0x4D1: // Play
+      tspeed=140;
+      aspeed=4;
+    break;
+    case 0x9D1: // Pause
+      tspeed=0;
+      aspeed=4;
+    break;
+    case 0x2D1: // FF
+      if (tspeed<200)
+        tspeed++;
+    break;
+    case 0xCD1: // RW
+      if (tspeed>1)
+        tspeed--;
+    break;
+    case 0x0D1: // Prev
+      if (cspeed<70)
+        traindirection=TRAIN_BACKWARD;
+      else
+        tspeed=0;
+    break;
+    case 0x8D1: // Next
+      if (cspeed<70)
+        traindirection=TRAIN_FORWARD;
+      else
+        tspeed=0;
+    break;
+    case 0x1D1: // Stop
+      if (mode==NORMAL)
+        mode=MANUAL;
+      
+      cspeed=tspeed=0;
+      aspeed=14;
+      traindirection=TRAIN_BRAKE;
+      cnt1=cnt2=stopCnt=0;
+    break;
+    default:
+      Serial.println("?");  
+  }
+  Serial.println(results.value, HEX);
+  
 }
 
 void loop()
@@ -712,6 +789,9 @@ void loop()
         mode=NORMAL;
       else
         loopDemoMode();
+    break;
+    case MANUAL:
+      loopManualMode();
     break;
     default:
       mode=NORMAL;
