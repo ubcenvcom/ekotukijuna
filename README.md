@@ -35,7 +35,6 @@ Requirements:
 * I2C connected character LCD for informational messages
 * I2C connected OLED screen for sponsor information
 * IR RX on pin 12
-* (SD card reader, amplifier and speaker for action sounds)
 
 TODO
 ====
