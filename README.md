@@ -20,7 +20,7 @@ valita eri teemoista haluamiensa aihesisältöjen mukaan.
 * Jätehuolto-osiossa esitellään kerrostalon kierrätyspiste, jossa erikseen nostetaan vuoden 2016 alussa alkava biojätteen keräys. Biojäte kuljetetaan Ratakaupungissa biokaasuvoimalaan, jossa siitä valmistetaan energiaa.
 * Luonnon monimuotoisuus käsittelee vieraslajeja, Varsinais-Suomen luontoa, ravintoketjuja ja ekosysteemipalveluita.
 
-
+Lue lisää Turun Ekotuesta: http://www.ekotuki.net/
 
 What does it do ?
 =================
