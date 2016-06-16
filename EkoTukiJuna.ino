@@ -34,7 +34,7 @@
 
 #define BACKLIGHT_PIN     3
 #define DISPLAY_V_A 1
-// #define DEBUG_INFO 1
+#define DEBUG_INFO 1
 
 #define IR_PIN 12
 
@@ -127,7 +127,7 @@ int runTime;
 int stopTime;
 
 const byte runSpeedMin=170;
-const byte runSpeedMax=190;
+const byte runSpeedMax=220;
 const byte stopSpeed=120;
 
 float shuntvoltage;
@@ -203,7 +203,7 @@ void lcd_init()
   lcd.setBacklight(BACKLIGHT_ON);
   lcd.begin(16, 2);
   lcd.home();
-  lcd.print("Turku Ekotuki v003");
+  lcd.print("TkuEkotuki-v03");
 }
 
 int readAnalogSetting(int pin, int vmin, int vmax)
@@ -465,7 +465,9 @@ void updateLCDBasePage()
 
   lcdPrintIntAt(2, 0, state);  
   lcdPrintIntAt(2, 1, stopCnt);
-  lcdPrintIntAt(3, 0, mode);  
+  
+  lcdPrintIntAt(3, 0, mode);
+  lcdPrintIntAt(3, 1, traindirection);
 
   lcdPrintIntAt(5, 0, tspeed);
   lcdPrintIntAt(5, 1, cspeed);
@@ -497,7 +499,8 @@ void speedAdjust()
     cspeed += aspeed;
   else if (tspeed < cspeed && cspeed > aspeed && cspeed>0) {
     cspeed -= aspeed;
-  }
+  } else if (tspeed==0 && cspeed>0)
+    cspeed=0;
 }
 
 void setNextState(int s, int p, int a)
@@ -700,61 +703,105 @@ void trainUpdate()
 void readIR()
 {
   decode_results results;
+  static unsigned long pcode=0;
 
   if (!irrecv.decode(&results))
     return;
 
   irrecv.resume();
 
-  switch (results.value) {
-    case 0xFFFFFFFF:
-      Serial.println("*");
-    break;
-    // 0-9
+  /*
+  if (results.value==0xFFFFFFFF && pcode>0)
+    results.value=pcode;
+  else
+    pcode=results.value;
+  */
 
+  switch (results.value) {
+    // 1-3
+    case 0x011: // 1
+      led1=led1>0 ? 0 : 64;
+      ucm=0;
+    break;
+    case 0x811: // 2
+      led2=led2>0 ? 0 : 64;
+      ucm=0;
+    break;
+    case 0x411: // 3
+      led3=led3>0 ? 0 : 64;
+      ucm=0;
+    break;
+    case 0xC11: // 4
+    case 0x211: // 5
+    case 0xA11: // 6
+    break;
     // Controls
     case 0x4D1: // Play
-      tspeed=140;
-      aspeed=4;
+      if (tspeed<40)
+        tspeed=runSpeedMin;
+      aspeed=6;
+      if (traindirection==TRAIN_BRAKE)
+        traindirection=TRAIN_FORWARD;
+      state=ST_RUNNING;
     break;
     case 0x9D1: // Pause
       tspeed=0;
-      aspeed=4;
+      aspeed=6;
+      state=ST_STOPPING;
     break;
     case 0x2D1: // FF
-      if (tspeed<200)
-        tspeed++;
+      if (tspeed<runSpeedMax)
+        tspeed+=2;
     break;
     case 0xCD1: // RW
-      if (tspeed>1)
-        tspeed--;
+      if (tspeed>2)
+        tspeed-=2;
+      else
+        tspeed=0;
     break;
     case 0x0D1: // Prev
-      if (cspeed<70)
+      if (cspeed==0 && (traindirection==TRAIN_FORWARD || traindirection==TRAIN_BRAKE)) {      
+        if (traindirection==TRAIN_FORWARD) {
+          tspeed=runSpeedMin;
+          state=ST_RUNNING;
+        }
         traindirection=TRAIN_BACKWARD;
-      else
+      } else {
         tspeed=0;
+        aspeed=8;
+        state=ST_STOPPING;
+      }
     break;
     case 0x8D1: // Next
-      if (cspeed<70)
-        traindirection=TRAIN_FORWARD;
-      else
+      if (cspeed==0 && (traindirection==TRAIN_BACKWARD || traindirection==TRAIN_BRAKE)) {
+          if (traindirection==TRAIN_BACKWARD) {
+            tspeed=runSpeedMin;
+            state=ST_RUNNING;
+          }
+        traindirection=TRAIN_FORWARD;        
+      } else {
         tspeed=0;
+        aspeed=8;
+        state=ST_STOPPING;
+      }
     break;
     case 0x1D1: // Stop
-      if (mode==NORMAL)
+      if (mode==NORMAL) {        
         mode=MANUAL;
-      
+      }
+
+      lcd.clear();
       cspeed=tspeed=0;
       aspeed=14;
       traindirection=TRAIN_BRAKE;
       cnt1=cnt2=stopCnt=0;
+      led1=led2=led3=0;
+      state=ST_INIT;
     break;
     default:
       Serial.println("?");  
   }
-  Serial.println(results.value, HEX);
-  
+  Serial.println(results.value, HEX);  
 }
 
 void loop()
@@ -795,14 +842,15 @@ void loop()
     break;
     default:
       mode=NORMAL;
-  }
-
-  trainUpdate();
+  }  
 
   if (pstate != state) {
     lcd.clear();
   }
+  
   updateLCD();
+
+  trainUpdate();
   
   // Do things that are not needed on every loop
   if (cm>ucm+updateDelay) {
