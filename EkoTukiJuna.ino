@@ -185,7 +185,7 @@ void lcd_init()
   lcd.setBacklight(BACKLIGHT_ON);
   lcd.begin(16, 2);
   lcd.home();
-  lcd.print("TkuEkotuki-v03");
+  lcd.print("TkuEkotuki-v04");
 }
 
 int readAnalogSetting(int pin, int vmin, int vmax)
