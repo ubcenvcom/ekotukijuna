@@ -8,29 +8,17 @@
 
 */
 
-// Define is sound support (SD card + amplifier) is connected
-//#define SOUND 1
-
 // ehheh
 #define ONE_DIRECTION 1
-
-#define SD_ChipSelectPin 4
 
 // Define if BW TFT screen is connected to i2c
 #define TFT_128x64 1
 
-//#include <SPI.h>
 #include <Wire.h>
 #include <U8glib.h>
 #include <LiquidCrystal_I2C.h>
 #include <Adafruit_INA219.h>
 #include <IRremote.h>
-
-#ifdef SOUND
-#include <pcmRF.h>
-#include <TMRpcm.h>
-#include <pcmConfig.h>
-#endif
 
 #define BACKLIGHT_PIN     3
 #define DISPLAY_V_A 1
@@ -75,18 +63,12 @@ U8GLIB_SH1106_128X64 u8g(U8G_I2C_OPT_NONE);
 
 #endif
 
-#ifdef SOUND
-TMRpcm pcm;
-#endif
-
 volatile byte cnt1 = 0; // Back counter
 volatile byte cnt2 = 0; // Station counter
 
 byte stopCnt = 0;
 
 byte lcdPage = 1;
-
-bool hasSD = false;
 
 enum {
   NORMAL,
@@ -383,16 +365,6 @@ void setup()
   readSettings();
 
   readINA();
-#ifdef SOUND
-  pcm.speakerPin = 9;
-
-  if (!SD.begin(SD_ChipSelectPin)) {
-    errorMsg("SD!");
-    hasSD = false;
-  } else {
-    hasSD = true;
-  }
-#endif
 
   delay(500);
 
