@@ -112,9 +112,9 @@ enum {
 int runTime;
 int stopTime;
 
-const byte runSpeedMin=170;
-const byte runSpeedMax=220;
-const byte stopSpeed=120;
+const byte runSpeedMin=180;
+const byte runSpeedMax=230;
+const byte stopSpeed=130;
 
 float shuntvoltage;
 float busvoltage;
@@ -545,6 +545,13 @@ switch (d) {
   }  
 }
 
+void adjustTargetSpeed(int t)
+{
+  tspeed = t - (busvoltage-minTrackVoltage) + (cnt1+cnt2);
+  if (tspeed>runSpeedMax)
+    tspeed=runSpeedMax;
+}
+
 void loopNormalMode()
 {
     switch (state) {
@@ -567,22 +574,20 @@ void loopNormalMode()
       setLCDPage(1);
       break;
     case ST_STARTING: //1
-      tspeed = runSpeedMax;
+      adjustTargetSpeed(runSpeedMax);
       if (ptime == 0) {
         setNextState(ST_RUNNING, 120, 4);
       }
       break;
     case ST_RUNNING: //2
-      tspeed = runSpeedMin - (busvoltage) + (cnt1+cnt2);
-      if (tspeed>runSpeedMax)
-        tspeed=runSpeedMax;
+      adjustTargetSpeed(runSpeedMin);
       if (ptime == 0 || cnt1 > maxRounds) {
         setNextState(ST_STOPPING, 30, random(2)+1);
         travel = random(100) > 50 ? 0 : 1;
       }
       break;
     case ST_STOPPING: //3
-      tspeed = stopSpeed;      
+      adjustTargetSpeed(stopSpeed);      
       if (ptime == 0) {
         setNextState(ST_STOPATSTATION, 5+random(10), 4);
         stopCnt = cnt2;
@@ -624,7 +629,7 @@ void loopNormalMode()
       }
       break;
     case ST_UNDERVOLTAGE:
-      if (busvoltage > 8.0) { // Go to initial state if we get enough power!
+      if (busvoltage > minTrackVoltage) { // Go to initial state if we get enough power!
         state = ST_INIT;
         mode = NORMAL;
         ptime = 2;
