@@ -2,7 +2,7 @@
    Turku Ekotuki
    http://www.ekotuki.net/
 
-   Copyright 2015 Kaj-Michael Lang
+   Copyright 2015-2017 Kaj-Michael Lang
 
    License: GPLv2
 
@@ -23,6 +23,10 @@
 #define BACKLIGHT_PIN     3
 //#define DISPLAY_V_A 1
 //#define DEBUG_INFO 1
+
+// Do we halt if track voltage drops under minTrackVoltage ? 
+#define BROWNOUT_TRACK 1
+const float minTrackVoltage=8.0;
 
 #define IR_PIN 12
 
@@ -316,13 +320,13 @@ void readINA(void)
   loadvoltage = busvoltage + (shuntvoltage / 1000);
 }
 
-void errorMsg(const char *msg)
+void errorMsg(const char *msg, int mdelay=500)
 {
   lcd.clear();
   lcd.home();
   lcd.print(msg);
   Serial.println(msg);
-  delay(400);
+  delay(mdelay);
 }
 
 void setup()
@@ -348,9 +352,10 @@ void setup()
   digitalWrite(4, LOW);
   digitalWrite(7, LOW);
 
-  irrecv.enableIRIn();
-
   Serial.begin(115200);
+  Serial.println("EkoTukiJuna");
+
+  irrecv.enableIRIn();  
 
   cm = millis();
 
@@ -795,13 +800,15 @@ void loop()
     case NORMAL:
     case BIKE:
       loopNormalMode();
-      if (busvoltage < 8.0 && mode==NORMAL) {
+#ifdef BROWNOUT_TRACK
+      if (busvoltage < minTrackVoltage && mode==NORMAL) {
         state = ST_UNDERVOLTAGE;
         tspeed = 0;
         cspeed = 0;
         ptime = 0;        
-        errorMsg("LOW VOLTAGE");        
+        errorMsg("LOW VOLTAGE", 2000);        
       }
+#endif      
     break;
     case DEMO:
       if (busvoltage > 5.0)
