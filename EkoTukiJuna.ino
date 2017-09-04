@@ -39,7 +39,7 @@ IRrecv irrecv(IR_PIN);
 #define SPONSOR_LOGO_LSHJ 1
 #define SPONSOR_LOGO_FOLI 1
 #define SPONSOR_LOGO_TSP 1
-//#define SPONSOR_LOGO_TE 1
+#define SPONSOR_LOGO_TE 1
 #define SPONSOR_LOGO_EKOTUKI 1
 
 #ifdef TFT_128x64
