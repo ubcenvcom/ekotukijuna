@@ -26,7 +26,7 @@
 
 // Do we halt if track voltage drops under minTrackVoltage ? 
 #define BROWNOUT_TRACK 1
-const float minTrackVoltage=8.0;
+const float minTrackVoltage=7.0;
 
 #define IR_PIN 12
 
