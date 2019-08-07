@@ -27,6 +27,7 @@
 // Do we halt if track voltage drops under minTrackVoltage ? 
 #define BROWNOUT_TRACK 1
 const float minTrackVoltage=7.0;
+const float normTrackVoltage=12.0;
 
 #define IR_PIN 12
 
@@ -35,6 +36,10 @@ LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7); // Set the LCD I2C address
 Adafruit_INA219 ina219;
 
 IRrecv irrecv(IR_PIN);
+
+#define VERSION_STR "TE-v006"
+
+const char *version=VERSION_STR;
 
 #define SPONSOR_LOGO_LSHJ 1
 #define SPONSOR_LOGO_FOLI 1
@@ -131,7 +136,7 @@ byte travel = 0;
 byte traindirection = TRAIN_BRAKE;
 
 // How many trips around the track before stopping at station, max
-byte maxRounds = 9;
+byte maxRounds = 6;
 
 // Sponsor display helpers
 enum {
@@ -189,7 +194,7 @@ void lcd_init()
   lcd.setBacklight(BACKLIGHT_ON);
   lcd.begin(16, 2);
   lcd.home();
-  lcd.print("TkuEkotuki-v005");
+  lcd.print(version);
 }
 
 int readAnalogSetting(int pin, int vmin, int vmax)
@@ -329,60 +334,6 @@ void errorMsg(const char *msg, int mdelay=500)
   delay(mdelay);
 }
 
-void setup()
-{
-  // setup PWM output pins
-  // Pins 5,6 and 10 are connect to a motor controller, we abuse it a bit
-  
-  pinMode(5, OUTPUT); // Train speed
-  pinMode(6, OUTPUT);  // Abused for LED
-  pinMode(10, OUTPUT); // Abused for LED
-
-  analogWrite(5, 0);
-  analogWrite(6, 0);
-  analogWrite(10, 0);
-
-  pinMode(9, OUTPUT);
-  analogWrite(9, 0);
-
-  // Direction control
-  pinMode(4, OUTPUT);
-  pinMode(7, OUTPUT);
-
-  digitalWrite(4, LOW);
-  digitalWrite(7, LOW);
-
-  Serial.begin(115200);
-  Serial.println("EkoTukiJuna");
-
-  irrecv.enableIRIn();  
-
-  cm = millis();
-
-  lcd_init();
-
-  ina219.begin();
-
-#ifdef TFT_128x64  
-  u8g.setColorIndex(1);
-#endif
-
-  readSettings();
-
-  readINA();
-
-  delay(500);
-
-  // Train track IR sensors are connected to pins 2,3
-  pinMode(2, INPUT);
-  pinMode(3, INPUT);
-  attachInterrupt(digitalPinToInterrupt(2), trackTick2, FALLING);
-  attachInterrupt(digitalPinToInterrupt(3), trackTick1, FALLING);
-
-  lcd.clear();
-
-  setLights();  
-}
 
 void setLCDPage(int page)
 {
@@ -486,7 +437,7 @@ void setNextState(int s, int p, int a)
   ptime = p;
   aspeed = a;
 
-  Serial.println("***");
+  Serial.println("*");
   Serial.println(s);
   Serial.println(p);
   Serial.println(a);
@@ -506,7 +457,7 @@ void dump()
   Serial.print("SV:"); Serial.print(shuntvoltage); Serial.println(" mV");
   Serial.print("LV:"); Serial.print(loadvoltage); Serial.println(" V");
   Serial.print("CU:"); Serial.print(current_mA); Serial.println(" mA");
-  Serial.println("---");
+  Serial.println("-");
   Serial.print("CS:");
   Serial.println(cspeed);
   Serial.print("TS:");
@@ -515,7 +466,7 @@ void dump()
   Serial.println(ptime);
   Serial.print("ST:");
   Serial.println(state);
-  Serial.println("---");
+  Serial.println("-");
 #endif
 }
 
@@ -547,7 +498,7 @@ switch (d) {
 
 void adjustTargetSpeed(int t)
 {
-  tspeed = t - (busvoltage-minTrackVoltage) + (cnt1+cnt2);
+  tspeed = t - ((busvoltage-normTrackVoltage)*2) + (cnt1+cnt2);
   if (tspeed>runSpeedMax)
     tspeed=runSpeedMax;
 }
@@ -786,6 +737,61 @@ void readIR()
   Serial.println(results.value, HEX);  
 }
 
+void setup()
+{
+  // setup PWM output pins
+  // Pins 5,6 and 10 are connect to a motor controller, we abuse it a bit
+  pinMode(5, OUTPUT); // Train speed
+  pinMode(6, OUTPUT);  // Abused for LED
+  pinMode(10, OUTPUT); // Abused for LED
+
+  // Make sure they are not active
+  analogWrite(5, 0);
+  analogWrite(6, 0);
+  analogWrite(10, 0);
+
+  //
+  pinMode(9, OUTPUT);
+  analogWrite(9, 0);
+
+  // Motor controller direction control
+  pinMode(4, OUTPUT);
+  pinMode(7, OUTPUT);
+  digitalWrite(4, LOW);
+  digitalWrite(7, LOW);
+
+  Serial.begin(115200);
+  Serial.println(version);
+
+  irrecv.enableIRIn();  
+
+  cm = millis();
+
+  lcd_init();
+
+  ina219.begin();
+
+#ifdef TFT_128x64  
+  u8g.setColorIndex(1);
+#endif
+
+  readSettings();
+
+  readINA();
+
+  delay(500);
+
+  // Train track IR sensors are connected to pins 2,3
+  pinMode(2, INPUT);
+  pinMode(3, INPUT);
+  attachInterrupt(digitalPinToInterrupt(2), trackTick2, FALLING);
+  attachInterrupt(digitalPinToInterrupt(3), trackTick1, FALLING);
+
+  lcd.clear();
+
+  setLights();  
+}
+
 void loop()
 {
   cm = millis();
@@ -841,8 +847,11 @@ void loop()
     updateTFT();
     setLights();
     ucm=cm;
-  }  
+  }
+
+  unsigned long cm_now = millis();
+
+  Serial.println(cm_now-cm);
 
   delay(100);
 }
-
